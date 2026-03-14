@@ -1,8 +1,16 @@
-# spec-driven.yaml
-schema: spec-driven
+project: TFG
+version: "1.0.0"
 
-# spec-driven.yaml
-schema: spec-driven
+# Rutas relativas desde la raíz del proyecto
+paths:
+  changes: "openspec/changes"
+  specs: "openspec/specs"
+  archive: "openspec/changes/archive"
+
+# Configuración del motor
+engine:
+  specification_mode: spec-driven
+  auto_archive: false
 
 # Project context
 # Define el stack, el dominio de negocio y la lógica de auditoría
@@ -13,6 +21,8 @@ context: |
     - Auth & IdP: Keycloak (OIDC + PKCE) con Roles: 'admin', 'editor', 'viewer'.
     - Database: PostgreSQL HA con PgBouncer (Modelo relacional para activos de red y cómputo).
     - Infrastructure: Kubernetes (K8s) gestionado vía Helm Charts, Ingress NGINX y HPA.
+    - Logs: Deja logs claros de las operaciones en ficheros separados. Peticiones api, cargas bbdd, todos. Con los errores claramente identificados.
+
 
   Domain Knowledge (CMDB Centralizado):
     - Activos: Servidores (Físicos/Virtuales), Networking (Switches, Routers, APs).
@@ -44,6 +54,7 @@ rules:
     - DB: Uso de ORM obligatorio para evitar SQL Injection.
     - Integraciones: Clientes asíncronos para atacar APIs externas (VMware, Veeam).
     - Healthchecks: Validar conectividad con Postgres HA.
+    - Historificación: Tiene que guardarse versiones en la bbdd para poder consultar el inventario en un momento pasado del tiempo. Tiene que guarda un año
 
   frontend_code:
     - Seguridad: Gestión de tokens en cookies Secure/HttpOnly y flujo PKCE.

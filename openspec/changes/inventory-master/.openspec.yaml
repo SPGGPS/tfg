@@ -40,6 +40,10 @@ rules:
     - Estilo de Etiquetas: Las manuales deben tener colores vibrantes (definidos por admin) y las automáticas colores neutros (sistema).
     - Acciones Masivas: Tabla con checkboxes para selección múltiple y botón "Asignar Etiquetas".
     - Indicador de frescura: Mostrar tiempo transcurrido desde la última sincronización horaria.
+    - Historificacion: Se tiene que poder señalar en que momento se quiere ver el inventario. Habra una opcion Live o un desplegable con la hora y el dia. Como la syn es cada 60 miutos solo saldran las horas 
+    - Busqueda: En el dashboard se mostrara un boton de busqueda, que sera, por todos los campos que se muestren.
+    - Ordenar: Se podra ordenar por todos los campos que se muestren.
+    - Estado: La información que indique si hay agente instaladoo esta dado de alta en EDR, MONICA, ... mostrara un punto rojo en caso de no estarlo y uno verde si lo esta. En el caso del backup mostrará la fecha del ultimo backup.
   k8s_manifests:
     - Helm: Configurar CronJobs (0 * * * *) para las tareas de sincronización periódica.
     - Gestión de Secretos: Inyectar credenciales de vCenter/Veeam/Monica de forma segura.
