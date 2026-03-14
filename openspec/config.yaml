@@ -1,0 +1,63 @@
+# spec-driven.yaml
+schema: spec-driven
+
+# spec-driven.yaml
+schema: spec-driven
+
+# Project context
+# Define el stack, el dominio de negocio y la lógica de auditoría
+context: |
+  Tech stack: 
+    - Frontend: React.js (Vite), Tailwind CSS, TanStack Query.
+    - Backend: Python (FastAPI) - Orquestador de Inventario y Resource Server.
+    - Auth & IdP: Keycloak (OIDC + PKCE) con Roles: 'admin', 'editor', 'viewer'.
+    - Database: PostgreSQL HA con PgBouncer (Modelo relacional para activos de red y cómputo).
+    - Infrastructure: Kubernetes (K8s) gestionado vía Helm Charts, Ingress NGINX y HPA.
+
+  Domain Knowledge (CMDB Centralizado):
+    - Activos: Servidores (Físicos/Virtuales), Networking (Switches, Routers, APs).
+    - Ingesta Externa: VMware (vCenter), Veeam, EDR (Crowdstrike/SentinelOne), Monica (Assets), Monitorización (Zabbix/Nagios), Syslog.
+    - Lógica de Cumplimiento (Compliance Audit): Verificación de:
+        * Registro en Monica (Asset Management).
+        * Presencia y estado del EDR.
+        * Existencia de Backup reciente en Veeam.
+        * Alta en Monitorización y envío de logs.
+
+  Security Foundations (Anti-Exploit):
+    - Autenticación: Delegada a Keycloak (Authorization Code Flow + PKCE).
+    - Protección OWASP: Prevención de SQLi (ORM con parámetros), XSS (Sanitización), CSRF y Secure Headers.
+    - K8s Security: NetworkPolicies "Deny-All", contenedores Non-Root y RBAC de infraestructura.
+
+# Per-artifact rules
+# Reglas específicas para asegurar consistencia en cada componente
+rules:
+  openapi_spec:
+    - Seguir OpenAPI 3.1.0 con 'securitySchemes' tipo 'openIdConnect' (Keycloak URL).
+    - Modelos Asset: Incluir campos de auditoría (edr_status, backup_status, monica_id, etc.).
+    - Endpoints de Ingesta: Protegidos con scopes/roles específicos ('/ingest/vmware', '/ingest/veeam').
+    - Validación: 'pattern', 'format' y 'maxLength' obligatorios en todos los inputs.
+    - Anotación 'x-required-roles' en cada path (Admin, Editor, Viewer).
+
+  backend_code:
+    - Autorización: Middleware/Inyectores para validar firma RS256 (JWKS) y roles en el token.
+    - Lógica de Negocio: Reconciliación de activos (unificar datos de múltiples fuentes bajo un mismo ID).
+    - DB: Uso de ORM obligatorio para evitar SQL Injection.
+    - Integraciones: Clientes asíncronos para atacar APIs externas (VMware, Veeam).
+    - Healthchecks: Validar conectividad con Postgres HA.
+
+  frontend_code:
+    - Seguridad: Gestión de tokens en cookies Secure/HttpOnly y flujo PKCE.
+    - UI/UX: Dashboard de "Health Score" con indicadores visuales de cumplimiento.
+    - RBAC Visual: Wrappers para ocultar o deshabilitar acciones según rol.
+    - Estabilidad: Skeletons y manejo de errores que no revelen detalles internos.
+
+  k8s_manifests:
+    - Metodología Helm: Organización modular con subcharts y gestión de Secretos (vCenter/Veeam keys).
+    - HA: Mínimo 3 réplicas para el tráfico web y operadores para Postgres HA (CloudNativePG).
+    - Automatización: CronJobs para sincronización periódica con inventarios externos.
+    - Red: NetworkPolicies para restringir el acceso a la base de datos solo desde el backend.
+
+  tasks:
+    - Dividir en bloques de máximo 4h.
+    - Priorizar diseño de DB relacional y lógica de validación/sanitización antes que la estética.
+    - Configurar mappers de roles en Keycloak como paso crítico inicial.
