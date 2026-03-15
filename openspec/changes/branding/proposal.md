@@ -29,16 +29,21 @@ rules:
   frontend_code:
     - Nombre de la app en sidebar, título del navegador (document.title), página de login
       y cualquier texto que diga "TFG CMDB" SHALL sustituirse por "Inventario Centralizado".
-    - El logo del Ayuntamiento SHALL mostrarse en la parte superior izquierda del sidebar,
-      encima del nombre "Inventario Centralizado". Tamaño aproximado 40×40px. Si el logo
-      externo no carga, mostrar solo el texto como fallback.
-    - La paleta primaria SHALL actualizarse a los colores corporativos de ssreyes.org:
-        * Azul corporativo principal: #003F7F (azul oscuro institucional)
-        * Azul secundario / hover: #005BAA
-        * Dorado/ámbar corporativo (acentos): #C8963E
-        * Texto sobre fondo oscuro: conservar la legibilidad con fondos gray-900/950
-    - El color `primary` en tailwind.config.js SHALL apuntar al azul corporativo #003F7F.
-    - Los badges de rol "admin" pueden usar el dorado corporativo en lugar del rojo.
+    - El header del sidebar SHALL mostrar: escudo (48×48px) + "Ayuntamiento de San Sebastián
+      de los Reyes" (text-xs) + "Inventario Centralizado" (text-[10px] text-blue-200).
+      Logo URL: https://www.ssreyes.org/o/ayto-ssreyes-theme/images/logo-ssreyes.png
+      Alternativa estable: asset estático en frontend/public/logo-ssreyes.png.
+      Fallback si no carga: SVG escudo inline en azul #003F7F y dorado #C8963E.
+    - tailwind.config.js SHALL definir:
+        primary: { DEFAULT:'#003F7F', hover:'#004F9F', dark:'#002B5C', light:'#E8F0FB' }
+        corporate: { gold:'#C8963E', red:'#C0392B' }
+    - index.css SHALL definir las CSS variables correspondientes.
+    - Fondo del sidebar completo: #002B5C. Header del sidebar: #003F7F.
+    - Item de nav activo: bg-white/20 + borde izquierdo 3px solid #C8963E.
+    - Topbar: fondo #002B5C, borde inferior border-blue-800.
+    - Página de login: fondo gradiente #001A3A → #002B5C, logo centrado 80×80px,
+      texto institucional, botón azul corporativo.
+    - Contraste WCAG AA (≥4.5:1) obligatorio en todos los textos sobre fondos azules.
 
 # Dependencias
 dependencies:

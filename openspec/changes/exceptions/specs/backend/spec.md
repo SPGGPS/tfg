@@ -2,6 +2,31 @@
 
 ## ADDED Requirements
 
+
+### Requirement: Serialización de enums en to_dict — siempre string plano
+
+Todos los campos de tipo `Enum` de SQLAlchemy en los modelos SHALL serializarse como **string plano** en `to_dict()`, nunca como el objeto enum completo.
+
+El patrón correcto es:
+```python
+# ❌ INCORRECTO — devuelve "ExceptionReasonCode.network_device"
+"reason_code": self.reason_code
+
+# ✅ CORRECTO — devuelve "network_device"
+"reason_code": str(self.reason_code).split(".")[-1] if self.reason_code else None
+```
+
+Esto aplica a **todos** los campos enum del modelo: `indicator`, `reason_code`, `status`, `binding_tier`, `asset_type`, `environment`, etc.
+
+**Motivación:** el frontend compara `exc.reason_code` contra strings como `"network_device"` o `"pending_deployment"`. Si recibe `"ExceptionReasonCode.network_device"` la comparación falla silenciosamente y el badge muestra el color incorrecto (azul en lugar de azul-rojo).
+
+#### Scenario: reason_code devuelto como string plano
+- **GIVEN** una excepción con reason_code=ExceptionReasonCode.pending_deployment
+- **WHEN** se serializa con to_dict()
+- **THEN** el campo reason_code en la respuesta JSON es el string "pending_deployment", no "ExceptionReasonCode.pending_deployment"
+
+---
+
 ### Requirement: Modelo ComplianceException
 El backend SHALL implementar el modelo `ComplianceException` con los campos:
 - `id` (UUID PK)
@@ -27,7 +52,28 @@ El backend SHALL implementar el modelo `ComplianceException` con los campos:
 
 ---
 
-### Requirement: Lógica de estado de excepción
+### Requirement: Lógica de creación múltiple en el router POST /v1/exceptions
+El router SHALL implementar la lógica de creación múltiple de la siguiente manera:
+
+1. Validar que todos los `asset_ids` existen en la BD. Si alguno no existe, devolver 404 inmediatamente sin crear nada.
+2. Para cada `asset_id` del array:
+   a. Comprobar si ya existe excepción activa para `(asset_id, indicator)`.
+   b. Si existe → incrementar contador `skipped`, continuar con el siguiente.
+   c. Si no existe → construir `reason = f"{REASON_LABELS[reason_code]}: {description.strip()}"`, crear la excepción, registrar audit log, incrementar contador `created`.
+3. Hacer `db.commit()` una sola vez al final, no por cada excepción.
+4. Devolver 201 con `{"created": N, "skipped": M, "exceptions": [lista de creadas]}`.
+
+El router **nunca devuelve 409** por activos que ya tienen excepción activa — los omite silenciosamente. Solo devuelve 409 si se intenta revocar una excepción ya revocada.
+
+#### Scenario: Commit único al final
+- **GIVEN** un batch de 5 activos, 2 ya tienen excepción
+- **WHEN** se procesa el array
+- **THEN** se crean 3 excepciones en una única transacción y se devuelve created=3, skipped=2
+
+#### Scenario: Rollback si falla durante el batch
+- **GIVEN** un error inesperado al crear la excepción del activo 3 de 5
+- **WHEN** se produce el error
+- **THEN** se hace rollback de toda la transacción y no se crea ninguna excepción
 El backend SHALL implementar una propiedad o función `is_active(exception)` que devuelve `True` si:
 - `revoked_at IS NULL`
 - Y (`expires_at IS NULL` O `expires_at > datetime.now(utc)`)

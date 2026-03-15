@@ -16,40 +16,59 @@ El modelo Asset SHALL incluir campos opcionales específicos para activos de tip
 
 **Campos de resumen (en tabla y detalle):**
 - `db_engine` (string enum) — motor de base de datos. Valores válidos:
-  - Relacionales: `postgresql`, `mysql`, `mariadb`, `oracle`, `oracle_xe`, `sqlserver`, `sqlserver_express`, `sqlserver_standard`, `sqlserver_developer`, `sqlserver_azure`, `db2`, `sqlite`
-  - NoSQL documentales: `mongodb`, `couchdb`, `firestore`
-  - NoSQL clave-valor: `redis`, `memcached`, `dynamodb`
-  - NoSQL columnar: `cassandra`, `hbase`, `bigquery`
-  - NoSQL grafo: `neo4j`, `arangodb`
-  - Búsqueda: `elasticsearch`, `opensearch`, `solr`
-  - Cloud managed: `aurora_mysql`, `aurora_postgresql`, `azure_sql`, `cloud_spanner`, `cloud_sql`
-  - `other` — para cualquier otro motor
-- `db_version` (string) — versión del motor (ej. "16.2", "19c", "2022")
-- `db_size_gb` (int) — tamaño total de los datos en GB
-- `db_host` (string) — hostname o IP del servidor que aloja la base de datos
-- `db_port` (int) — puerto de escucha
+
+  | Familia | Valores del enum |
+  |---------|-----------------|
+  | Relacional open-source | `postgresql`, `mysql`, `mariadb`, `sqlite`, `percona` |
+  | Relacional comercial | `oracle`, `oracle_xe`, `sqlserver`, `sqlserver_express`, `sqlserver_standard`, `sqlserver_enterprise`, `db2`, `sybase` |
+  | NoSQL documental | `mongodb`, `couchdb`, `couchbase`, `firestore`, `documentdb` |
+  | NoSQL clave-valor | `redis`, `memcached`, `dynamodb`, `keydb` |
+  | NoSQL columnar | `cassandra`, `hbase`, `scylladb`, `bigquery`, `clickhouse` |
+  | NoSQL grafo | `neo4j`, `arangodb`, `janusgraph` |
+  | Búsqueda / analítica | `elasticsearch`, `opensearch`, `solr`, `splunk` |
+  | Cloud managed | `aurora_mysql`, `aurora_postgresql`, `azure_sql`, `azure_cosmos`, `cloud_spanner`, `cloud_sql`, `neon`, `planetscale` |
+  | Warehouse / OLAP | `snowflake`, `redshift`, `databricks`, `synapse` |
+  | Time-series | `influxdb`, `timescaledb`, `prometheus` |
+  | `other` | Cualquier otro motor — especificar en db_notes |
+
+- `db_version` (string) — versión del motor (ej. "16.2", "19c Enterprise", "2022 SP1")
+- `db_size_gb` (float) — tamaño total de datos en GB
+- `db_port` (int) — puerto de escucha principal
 - `db_replication` (bool, default False) — tiene replicación activa
-- `db_cluster` (string | null) — nombre del cluster o grupo de disponibilidad
+- `db_cluster` (string | null) — nombre del cluster, grupo de disponibilidad (AlwaysOn, RAC, Patroni, etc.) o replica set (MongoDB)
+- `db_is_cluster` (bool, default False) — indica si es un nodo de un cluster HA (vs instancia standalone)
+- `db_vip` (string | null) — Virtual IP o FQDN del listener del cluster (ej. "10.0.1.100" o "db-cluster.ssreyes.local"). Solo aplicable cuando `db_is_cluster=true`.
+- `db_host_asset_id` (string UUID | null) — FK opcional al Asset (server_physical o server_virtual) que aloja físicamente esta instancia de base de datos. Permite navegar del activo de base de datos al servidor host y viceversa.
+- `db_host_display` (string | null) — nombre o IP del servidor host tal como se muestra en UI. Si `db_host_asset_id` existe, se rellena automáticamente con el nombre del asset referenciado; si no, es un campo libre.
 
 **Campos de detalle extendido (solo en GET /v1/assets/{id}):**
-- `db_schemas` (array de objetos) — esquemas/bases de datos alojados. Cada objeto contiene:
-  - `name` (string) — nombre del esquema
+- `db_schemas` (array de objetos) — esquemas o bases de datos alojados. La estructura del objeto es común a todos los motores:
+  - `name` (string) — nombre del esquema/database/keyspace/índice según el motor
   - `size_gb` (float | null) — tamaño en GB
-  - `table_count` (int | null) — número de tablas
+  - `table_count` (int | null) — número de tablas, colecciones, índices o equivalentes
   - `owner` (string | null) — propietario o schema owner
-- `db_users` (array de objetos) — usuarios/roles de la base de datos. Cada objeto contiene:
-  - `username` (string) — nombre del usuario
-  - `role` (string) — rol (ej. "dba", "read_only", "read_write", "backup", "monitoring")
-  - `last_login` (datetime | null) — último acceso registrado
-- `db_connections_max` (int | null) — número máximo de conexiones configurado
-- `db_connections_active` (int | null) — conexiones activas en el momento de la última sync
-- `db_encoding` (string | null) — codificación del servidor (ej. "UTF-8", "AL32UTF8")
+  - `charset` (string | null) — juego de caracteres/codificación del esquema (MySQL/MariaDB)
+  - `collation` (string | null) — collation del esquema
+  - `description` (string | null) — descripción libre
+  Nota terminológica por motor: PostgreSQL → schemas; MySQL/MariaDB/SQLServer → databases; Oracle → schemas/PDB; MongoDB → databases; Cassandra/ScyllaDB → keyspaces; Elasticsearch/OpenSearch → indices; Redis → databases (0-15).
+- `db_cluster_nodes` (array de objetos | null) — nodos del cluster cuando `db_is_cluster=true`. Cada objeto:
+  - `hostname` (string) — nombre o IP del nodo
+  - `role` (string) — rol del nodo: `primary`, `replica`, `standby`, `arbiter`, `shard`, `config`
+  - `asset_id` (string UUID | null) — FK al Asset servidor que es este nodo
+  - `status` (string | null) — `online`, `offline`, `syncing`, `unknown`
+- `db_users` (array de objetos) — usuarios/roles de la base de datos. Cada objeto:
+  - `username` (string)
+  - `role` (string enum) — `dba`, `read_only`, `read_write`, `backup`, `monitoring`, `app`, `service`, `other`
+  - `last_login` (datetime | null)
+- `db_connections_max` (int | null) — conexiones máximas configuradas
+- `db_connections_active` (int | null) — conexiones activas en última sync
+- `db_encoding` (string | null) — codificación del servidor (ej. "UTF-8", "AL32UTF8", "LATIN1")
 - `db_timezone` (string | null) — zona horaria configurada
-- `db_ha_mode` (string | null) — modo de alta disponibilidad (ej. "primary", "replica", "standby", "none")
-- `db_ssl_enabled` (bool | null) — conexiones SSL/TLS obligatorias
+- `db_ha_mode` (string enum | null) — `primary`, `replica`, `standby`, `arbiter`, `standalone`, `unknown`
+- `db_ssl_enabled` (bool | null) — conexiones SSL/TLS requeridas
 - `db_audit_enabled` (bool | null) — auditoría de accesos activada en el motor
-- `db_last_vacuum` (datetime | null) — fecha del último mantenimiento/vacuum (PostgreSQL/MySQL)
-- `db_notes` (text | null) — notas libres del administrador sobre esta instancia
+- `db_last_vacuum` (datetime | null) — último mantenimiento/vacuum (PostgreSQL/MySQL)
+- `db_notes` (text | null) — notas libres del administrador
 
 #### Scenario: Campos de resumen para tipo database
 - **GIVEN** un activo de tipo database en la tabla de inventario
@@ -192,6 +211,62 @@ El endpoint GET /v1/assets/{id} SHALL devolver todos los campos del activo inclu
 - **WHEN** se llama GET /v1/assets/{id}
 - **THEN** la respuesta incluye un array `recent_audit` con los últimos 10 cambios
 
+### Requirement: Filtro por múltiples etiquetas en GET /v1/assets
+El endpoint GET /v1/assets SHALL aceptar el parámetro `tag_ids` como lista de IDs de etiquetas separados por coma. La lógica de filtrado es **AND**: solo se devuelven activos que tengan **todas** las etiquetas indicadas.
+
+- `tag_ids` (string, opcional): IDs de etiquetas separados por coma. Ejemplo: `?tag_ids=id1,id2,id3`
+- Si `tag_ids` está vacío o no se proporciona, no se aplica ningún filtro de etiqueta.
+- El filtro AND se implementa con múltiples `.filter(Asset.tags.any(Tag.id == tag_id))` encadenados, uno por cada ID del array.
+- El parámetro es compatible con todos los demás filtros (type, search, edr_installed, etc.) y con la paginación y ordenación.
+
+El parámetro singular `tag_id` (un solo ID) queda **deprecado** en favor de `tag_ids`. El backend SHALL aceptar ambos durante el período de transición: si se proporciona `tag_id`, se trata como `tag_ids` de un elemento.
+
+#### Scenario: Filtrar por una etiqueta
+- **GIVEN** GET /v1/assets?tag_ids=id-produccion
+- **THEN** devuelve solo activos que tengan la etiqueta "Producción"
+
+#### Scenario: Filtrar por dos etiquetas (AND)
+- **GIVEN** GET /v1/assets?tag_ids=id-produccion,id-cisco
+- **THEN** devuelve solo activos que tengan AMBAS etiquetas "Producción" y "Cisco"
+
+#### Scenario: Sin filtro de etiqueta
+- **GIVEN** GET /v1/assets (sin tag_ids)
+- **THEN** devuelve todos los activos sin filtrar por etiqueta
+
+#### Scenario: tag_ids con ID inexistente
+- **GIVEN** GET /v1/assets?tag_ids=id-real,id-inventado
+- **THEN** devuelve array vacío (ningún activo tiene ambas etiquetas si una no existe), sin error 404
+
+---
+
+### Requirement: Campo source — origen del activo
+El campo `source` (string, nullable) en el modelo Asset SHALL registrar el sistema o proceso que creó o actualizó por última vez el activo en el inventario. Es un campo libre pero el sistema de ingesta SHOULD usar valores canónicos para que la detección de badge en frontend sea fiable.
+
+**Valores canónicos recomendados para `source`:**
+| Sistema | Valor recomendado |
+|---------|------------------|
+| VMware vCenter API | `vmware` o `vcenter` |
+| Veeam Backup | `veeam` |
+| CrowdStrike API | `crowdstrike` |
+| SentinelOne API | `sentinelone` |
+| Zabbix API | `zabbix` |
+| Nagios/ICINGA | `nagios` |
+| Ansible playbook | `ansible` |
+| Monica / otro inventario | `monica` o `inventario` |
+| Script / cron job propio | `script` o `cron` |
+| Entrada manual por admin | `manual` |
+| Syslog / SIEM | `syslog` |
+| API genérica REST | `api` |
+
+El campo `source` es incluido en la búsqueda full-text (`search`) y es ordenable (`sort_by=source`).
+
+#### Scenario: Activo ingresado desde VMware con source correcto
+- **GIVEN** un CronJob que llama a la API de vCenter
+- **WHEN** ingesta activos vía POST /v1/assets/ingest
+- **THEN** cada activo incluye source="vmware" para que el frontend muestre el badge correcto
+
+---
+
 ### Requirement: Búsqueda extendida en GET /v1/assets
 El parámetro `search` SHALL buscar en todos los campos textuales: name, ips, vendor, source, os, model, serial_number, location, description, firmware_version, mac_address y nombres de etiquetas asignadas.
 
@@ -207,3 +282,22 @@ El endpoint GET /v1/assets SHALL aceptar los parámetros `sort_by` y `sort_order
 - **GIVEN** una consulta GET /v1/assets?sort_by=last_backup_local&sort_order=asc
 - **WHEN** hay activos con y sin backup local
 - **THEN** los activos con backup aparecen ordenados por fecha ascendente; los que tienen last_backup_local=null aparecen al final
+
+---
+
+### Requirement: Endpoints de certificados accesibles desde inventario
+
+Los certificados gestionados en la subtab de Inventario se sirven desde los endpoints definidos en el change `applications`:
+- `GET    /v1/certificates` — lista con filtros (status, environment, search, expiring_days)
+- `GET    /v1/certificates/{id}` — detalle con bindings de aplicaciones
+- `POST   /v1/certificates` — crear
+- `PUT    /v1/certificates/{id}` — actualizar
+- `DELETE /v1/certificates/{id}` — eliminar
+- `GET    /v1/certificates/expiry-summary` — resumen de estados para el banner
+
+La página de Inventario (tab Certificados) consume estos endpoints directamente. No se duplican ni se crean endpoints paralelos. El change `inventory-master` solo define la vista frontend; el contrato de API vive en `applications`.
+
+#### Scenario: Navegación entre inventario y certificados
+- **GIVEN** un usuario en el tab Inventario en `/`
+- **WHEN** hace click en el tab "Certificados"
+- **THEN** navega a `/certificates` y la tabla carga datos de GET /v1/certificates?sort_by=expires_at&sort_order=asc
