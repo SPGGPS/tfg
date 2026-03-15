@@ -41,3 +41,18 @@
 - [ ] 5.4 Crear página frontend /assets/:id con toda la información extendida e historial
 - [ ] 5.5 Hacer el nombre del activo en la tabla un enlace clickable a /assets/:id
 - [ ] 5.6 Reemplazar combo+botón de ordenación por iconos ↑↓ en cabecera de cada columna ordenable
+
+## 6. Tipo Database (nuevo)
+
+- [ ] 6.1 Añadir valor `database` al enum AssetType en backend y frontend
+- [ ] 6.2 Añadir campos de resumen al modelo Asset: db_engine (enum con catálogo completo), db_version, db_size_gb, db_host, db_port, db_replication (bool), db_cluster
+- [ ] 6.3 Añadir campos de detalle extendido (JSON columns): db_schemas, db_users, db_connections_max, db_connections_active, db_encoding, db_timezone, db_ha_mode, db_ssl_enabled, db_audit_enabled, db_last_vacuum, db_notes
+- [ ] 6.4 Incluir campos de resumen en to_dict() y en el listado GET /v1/assets
+- [ ] 6.5 Incluir campos de detalle extendido solo en GET /v1/assets/{id}
+- [ ] 6.6 Añadir badge "BD" (cyan) en AssetTypeBadge del frontend
+- [ ] 6.7 Añadir "database" al selector de filtro de tipo en InventoryPage
+- [ ] 6.8 Añadir sección "Instancia de Base de Datos" en AssetDetailPage con todos los campos de resumen
+- [ ] 6.9 Añadir sección "Esquemas / Bases de datos alojadas" (tabla) en AssetDetailPage
+- [ ] 6.10 Añadir sección "Usuarios y roles" (tabla con badges por rol) en AssetDetailPage
+- [ ] 6.11 Añadir auto-tag de sistema "Database" (color cyan) para activos de tipo database
+- [ ] 6.12 Añadir 2 ejemplos de activos database en seed (ej. PostgreSQL 16 producción, SQL Server 2022 ERP) con db_schemas y db_users de ejemplo

@@ -70,3 +70,52 @@ Al devolver los activos, el backend SHALL hacer un JOIN o subquery eficiente par
 - **GIVEN** una consulta de 50 activos
 - **WHEN** el backend construye la respuesta
 - **THEN** usa una sola query adicional (o JOIN) para cargar todas las excepciones, no una query por activo
+
+### Requirement: Catálogo de razones predefinidas en backend
+El backend SHALL definir un enum `ExceptionReasonCode` con los 12 valores del catálogo. El endpoint POST /v1/exceptions SHALL recibir `reason_code` y `description` como campos separados. La lógica de negocio construye el campo `reason` almacenado concatenando la etiqueta legible del reason_code con la descripción: `f"{REASON_LABELS[reason_code]}: {description.strip()}"`.
+
+Tabla de etiquetas:
+```
+agent_not_supported  → "Agente no compatible con el hardware o sistema operativo del dispositivo"
+network_device       → "Dispositivo de red (switch/router/AP) — no admite instalación de agentes"
+excluded_backup      → "Excluido de política de backup por decisión de negocio aprobada"
+excluded_monitoring  → "Excluido de monitorización — entorno aislado, de pruebas o DMZ"
+excluded_siem        → "Excluido de envío de logs a SIEM — dato clasificado o entorno restringido"
+legacy_system        → "Sistema legacy sin soporte para herramientas de seguridad actuales"
+pending_deployment   → "Pendiente de despliegue — instalación/configuración en curso"
+decommissioning      → "Activo en proceso de baja o retirada programada"
+cloud_backup_only    → "Política de solo backup en cloud, sin backup local"
+local_backup_only    → "Política de solo backup local, sin backup cloud"
+temporary_exclusion  → "Exclusión temporal por mantenimiento o ventana de cambio"
+other                → "Otro motivo"
+```
+
+El campo `description` es obligatorio (mínimo 20 chars) incluso cuando `reason_code` es autoexplicativo.
+
+### Requirement: CronJob de expiración de excepciones — limpieza de campos de compliance
+Cuando una excepción expira (`expires_at <= now()` y `revoked_at IS NULL`), el sistema SHALL marcarla automáticamente como expirada y, opcionalmente, registrar un evento en audit_logs. El backend NO modifica el campo de compliance del activo directamente (ese campo lo actualiza la ingesta externa). Sin embargo, al expirar la excepción, el badge de compliance vuelve a rojo automáticamente porque `is_active` devuelve `False` y el frontend deja de recibir esa excepción en el campo `exceptions` del activo.
+
+El CronJob diario de limpieza SHALL:
+1. Identificar todas las excepciones con `expires_at <= now()` y `revoked_at IS NULL`
+2. Registrar un evento en audit_logs por cada una: `activity_type=DELETE`, `entity_type="exception"`, con nota "Expirada automáticamente por CronJob"
+3. No modificar el registro de la excepción (permanece en historial con su estado expirado)
+
+La lógica de `is_active` en la consulta de GET /v1/assets ya filtra las expiradas, por lo que el badge cambia en cuanto la excepción expira, sin necesidad de acción manual.
+
+#### Scenario: Excepción expirada detectada en CronJob
+- **GIVEN** una excepción con expires_at="2026-03-15T00:00:00Z" y es la 01:00 del 16/03/2026
+- **WHEN** el CronJob diario se ejecuta
+- **THEN** se registra un audit_log de expiración y GET /v1/assets ya no incluye esa excepción en el campo exceptions del activo
+
+### Requirement: Lógica cuadriestad en el campo exceptions de GET /v1/assets
+El backend SHALL incluir en el campo `exceptions` de cada activo tanto las excepciones activas donde el indicador es KO **como** las excepciones activas donde el indicador es OK (origen reporta activo pero excepción sigue abierta). Esto permite al frontend calcular el estado cuadriestad sin lógica adicional:
+
+- Si el indicador es OK y hay excepción activa → el frontend muestra badge azul-verde (gradiente)
+- Si el indicador es KO y hay excepción activa → badge azul
+- Si el indicador es OK y no hay excepción → badge verde
+- Si el indicador es KO y no hay excepción → badge rojo
+
+#### Scenario: Excepción activa con indicador ahora OK
+- **GIVEN** un switch tiene excepción activa para "edr" (edr_installed=false)
+- **WHEN** CrowdStrike reporta que el switch ahora tiene agente (edr_installed=true)
+- **THEN** GET /v1/assets incluye la excepción en el campo exceptions y el frontend muestra badge azul-verde

@@ -1,6 +1,6 @@
-# OpenSpec – TFG
+# OpenSpec – Inventario Centralizado (Ayuntamiento SSReyes)
 
-Especificaciones y cambios del proyecto TFG (CMDB, inventario, auditoría, auth).
+Especificaciones y cambios del proyecto Inventario Centralizado (CMDB, inventario, auditoría, auth, excepciones, branding).
 
 ## Orden recomendado de apply
 
@@ -8,10 +8,11 @@ Para aplicar los changes con las dependencias correctas, usar este orden:
 
 1. **login** — Auth primero (Keycloak OIDC + PKCE, RBAC).
 2. **app-core** — Scaffold full-stack (FastAPI + React + OpenAPI + DB).
-3. **inventory-master**, **tags-management**, **user-profile** — Dominios de negocio (orden intercambiable).
-4. **exceptions** — Excepciones de compliance (depende de inventory-master y audit-logs).
-5. **audit-logs** — Auditoría (depende de auth y de los endpoints que registra).
-6. **unit-test** — Especificaciones de prueba (validar tras implementar).
+3. **branding** — Identidad visual corporativa (nombre, logo, paleta SSReyes).
+4. **inventory-master**, **tags-management**, **user-profile** — Dominios de negocio (orden intercambiable).
+5. **exceptions** — Excepciones de compliance (depende de inventory-master y audit-logs).
+6. **audit-logs** — Auditoría (depende de auth y de los endpoints que registra).
+7. **unit-test** — Especificaciones de prueba (validar tras implementar).
 
 Comando por change:
 

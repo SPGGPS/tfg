@@ -27,3 +27,20 @@
 - [ ] 3.7 Tooltip en badge azul con motivo de la excepción y quién la creó
 - [ ] 3.8 Actualizar leyenda al pie de la tabla de inventario: 🟢 OK · 🔵 Excepción · 🔴 KO
 - [ ] 3.9 Toast de confirmación al crear/revocar excepción
+
+## 4. Razones predefinidas (nuevo)
+
+- [ ] 4.1 Definir enum ExceptionReasonCode con 12 valores en backend
+- [ ] 4.2 Actualizar POST /v1/exceptions: añadir campos reason_code (enum, obligatorio) y description (str, min 20, obligatorio)
+- [ ] 4.3 Lógica de concatenación: reason = f"{REASON_LABELS[reason_code]}: {description}"
+- [ ] 4.4 Actualizar frontend: añadir selector de razón predefinida (obligatorio) y textarea de descripción (obligatorio, min 20 chars)
+- [ ] 4.5 Actualizar validación del botón: deshabilitado si falta activos, indicador, razón o descripción insuficiente
+
+## 5. Expiración automática y estado cuadriestad
+
+- [ ] 5.1 CronJob diario: detectar excepciones con expires_at <= now() y revoked_at IS NULL, registrar audit_log por cada una con nota "Expirada automáticamente"
+- [ ] 5.2 Verificar que is_active() excluye las expiradas correctamente → badge vuelve a rojo sin acción manual
+- [ ] 5.3 GET /v1/assets: incluir en el campo exceptions tanto las excepciones activas con indicador KO como con indicador OK (para calcular el cuadriestad en frontend)
+- [ ] 5.4 Frontend: implementar lógica cuadriestad en ComplianceBadge — gradiente azul-verde cuando origen=OK y excepción activa
+- [ ] 5.5 Frontend: tooltip en badge azul-verde: "OK desde el origen. Excepción activa: [motivo]. Considera revocarla."
+- [ ] 5.6 Frontend: actualizar leyenda con los 4 estados (verde / azul-verde / azul / rojo)

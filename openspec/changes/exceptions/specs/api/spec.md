@@ -105,3 +105,41 @@ Estructura de cada objeto en `exceptions`:
 - **GIVEN** un activo sin excepciones registradas
 - **WHEN** se llama GET /v1/assets
 - **THEN** el campo exceptions es un array vacío []
+
+### Requirement: POST /v1/exceptions soporta múltiples asset_ids
+El endpoint POST /v1/exceptions SHALL aceptar opcionalmente un array `asset_ids` además del campo `asset_id` singular. Si se proporciona `asset_ids`, se crea una excepción para cada activo del array con el mismo indicador, motivo y expires_at. Los activos que ya tengan excepción activa para ese indicador se omiten sin error. La respuesta incluye `created`, `skipped` y la lista de excepciones creadas.
+
+#### Scenario: Creación en múltiples activos
+- **GIVEN** un admin envía POST con asset_ids=["id1","id2","id3"] e indicator="edr"
+- **WHEN** id2 ya tiene excepción activa para "edr"
+- **THEN** responde 201 con {"created": 2, "skipped": 1, "exceptions": [...]}
+
+### Requirement: Catálogo de razones predefinidas en POST /v1/exceptions
+El body de POST /v1/exceptions SHALL incluir el campo `reason_code` (string enum, obligatorio) además de `description` (string, mínimo 20 chars, obligatorio). El campo `reason` almacenado SHALL ser la concatenación `"[etiqueta de reason_code]: [description]"`.
+
+Los valores válidos de `reason_code` son:
+- `agent_not_supported`
+- `network_device`
+- `excluded_backup`
+- `excluded_monitoring`
+- `excluded_siem`
+- `legacy_system`
+- `pending_deployment`
+- `decommissioning`
+- `cloud_backup_only`
+- `local_backup_only`
+- `temporary_exclusion`
+- `other`
+
+#### Scenario: reason_code obligatorio
+- **GIVEN** un admin envía POST sin reason_code
+- **THEN** responde 422 con detalle de validación
+
+#### Scenario: description obligatoria
+- **GIVEN** un admin envía POST con reason_code pero sin description o con menos de 20 chars
+- **THEN** responde 422 con detalle de validación
+
+#### Scenario: reason almacenado como concatenación
+- **GIVEN** reason_code="network_device" y description="Switch Cisco del CPD principal"
+- **WHEN** se crea la excepción
+- **THEN** el campo reason en BD contiene "Dispositivo de red: Switch Cisco del CPD principal"

@@ -1,4 +1,4 @@
-project: TFG
+project: "Inventario Centralizado"
 version: "1.0.0"
 
 # Rutas relativas desde la raíz del proyecto
@@ -20,7 +20,7 @@ context: |
     - Backend: Python (FastAPI) - Orquestador de Inventario y Resource Server.
     - Auth & IdP: Keycloak (OIDC + PKCE) con Roles: 'admin', 'editor', 'viewer'.
     - Database: PostgreSQL HA con PgBouncer (Modelo relacional para activos de red y cómputo).
-    - Infrastructure: Kubernetes (K8s) gestionado vía Helm Charts, Ingress NGINX y HPA.
+    - Infrastructure: Kubernetes (K8s) gestionado vía Helm Charts, Traefik (Ingress Controller nativo de k3s) y Cilium (CNI + NetworkPolicy como capa de red y firewall). Namespace dedicado: `inventory-ssreyes`. HPA habilitado para backend y frontend.
     - Logs: Deja logs claros de las operaciones en ficheros separados. Peticiones api, cargas bbdd, todos. Con los errores claramente identificados.
 
 
@@ -66,10 +66,20 @@ rules:
     - Compatibilidad: La UI debe funcionar en navegadores modernos (evergreen): Chrome, Firefox, Safari, Edge (últimas dos versiones principales); degradación controlada en navegadores antiguos.
 
   k8s_manifests:
-    - Metodología Helm: Organización modular con subcharts y gestión de Secretos (vCenter/Veeam keys).
-    - HA: Mínimo 3 réplicas para el tráfico web y operadores para Postgres HA (CloudNativePG).
-    - Automatización: CronJobs para sincronización periódica con inventarios externos.
-    - Red: NetworkPolicies para restringir el acceso a la base de datos solo desde el backend.
+    - Metodología Helm: Chart único `inventario-centralizado` con templates para todos los componentes. Namespace fijo `inventory-ssreyes` en todos los resources (metadata.namespace).
+    - Ingress Controller: Traefik (instalado por defecto en k3s). IngressRoute o Ingress estándar de Kubernetes apuntando al Service del frontend. Traefik no requiere instalación adicional en k3s.
+    - Red y Firewall: Cilium como CNI y capa de NetworkPolicy. Todas las NetworkPolicies usan `spec.podSelector` y `spec.ingress/egress` con `ports` explícitos. Política base deny-all por namespace, con allows explícitos por puerto y etiqueta.
+    - Puertos declarados explícitamente en NetworkPolicies y en containerPort de cada Deployment:
+        * frontend   → containerPort 80 (Traefik → Service → Pod)
+        * backend    → containerPort 8000 (frontend → backend, CronJobs → backend)
+        * postgres   → containerPort 5432 (solo desde backend y CronJobs)
+        * keycloak   → containerPort 8080 (solo desde backend para validación JWKS)
+    - Cilium requiere que los puertos estén abiertos tanto en la NetworkPolicy de salida (egress) del pod origen como en la de entrada (ingress) del pod destino. Ambos lados deben especificarse.
+    - HA: Para k3s local, réplicas=1 por defecto en values.yaml. En producción escalar a 3.
+    - Automatización: CronJobs en namespace `inventory-ssreyes` para snapshot horario, purga de audit_logs (180 días), purga de history (1 año) y expiración de excepciones.
+    - Secretos: Secret `inventario-secrets` con DATABASE_URL, JWT_SECRET. ConfigMap `inventario-config` con KEYCLOAK_URL, CORS_ORIGINS, SKIP_AUTH.
+    - Non-root: todos los contenedores con securityContext.runAsNonRoot=true, runAsUser=1001.
+    - PVC: `avatars-pvc` montado en el pod de backend en /tmp/avatars para persistir imágenes de avatar.
 
   tasks:
     - Dividir en bloques de máximo 4h.

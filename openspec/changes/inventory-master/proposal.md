@@ -27,7 +27,7 @@ proposal: |
 # Reglas de implementación para el inventario
 rules:
   openapi_spec:
-    - Definir modelos polimórficos para activos (discriminador: type [server_physical, server_virtual, switch, router, ap]).
+    - Definir modelos polimórficos para activos (discriminador: type [server_physical, server_virtual, switch, router, ap, database]).
     - El modelo Asset debe incluir un array 'tags' que contenga objetos Tag (id, name, color, origin).
     - Endpoint 'POST /v1/assets/bulk-tags': Para asignar etiquetas manuales a múltiples asset_ids simultáneamente.
     - Campos de compliance obligatorios: 'edr_installed' (bool), 'monitored' (bool), 'siem_enabled' (bool), 'logs_enabled' (bool), 'last_backup_local' (datetime|null), 'last_backup_cloud' (datetime|null). Todos son de **solo escritura por el sistema de ingesta** — no son editables por usuarios. El verde/rojo en UI refleja lo que cada origen de datos externo ha reportado en la última sincronización.

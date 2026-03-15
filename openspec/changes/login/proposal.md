@@ -36,8 +36,8 @@ rules:
     - Protección de rutas en React: Componente <ProtectedRoute roles={['user', 'admin']} />.
     - Gestión de Silent Refresh para mantener la sesión activa.
   k8s_manifests:
-    - Helm Chart: Incluir Client ID, Realm URL y Application Role Mappings en values.yaml.
-    - NetworkPolicies: Permitir tráfico de salida del Backend a Keycloak para validación de certificados.
+    - Helm Deployment: Keycloak HA + App Config con Client ID, Realm URL y Role Vars en values.yaml. Namespace `inventory-ssreyes`.
+    - NetworkPolicies Cilium: Permitir tráfico de salida (egress) del Backend a Keycloak en puerto 8080 para validación de JWKS. Declarar también el ingress correspondiente en el pod Keycloak. Ambos lados son necesarios para Cilium.
 
 # Desglose de tareas técnicas
 tasks:

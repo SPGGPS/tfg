@@ -35,27 +35,72 @@ La página SHALL mostrar:
 
 ---
 
-### Requirement: Formulario de creación de excepción
-El formulario SHALL incluir:
-- **Activo**: selector con búsqueda por nombre (typeahead) — obligatorio
-- **Indicador**: selector con las opciones EDR / MON / SIEM / LOGS / BCK / BCKCL — obligatorio
-- **Motivo**: textarea con contador de caracteres, mínimo 20 chars — obligatorio. El botón "Crear" está deshabilitado hasta que se cumple el mínimo.
-- **Expira el**: input de fecha (date picker) — opcional. Si se deja vacío la excepción es permanente.
+### Requirement: Formulario de creación de excepción — razones predefinidas, descripción obligatoria y multi-activo
+El formulario SHALL incluir los siguientes campos en este orden:
 
-#### Scenario: Botón deshabilitado con motivo corto
-- **GIVEN** un admin en el formulario con motivo de 10 caracteres
+**1. Activo/s** (obligatorio): campo de búsqueda con dropdown y checkboxes para selección múltiple. La búsqueda se activa con ≥1 carácter o con `*` para ver todos. Una nota visible bajo el campo indica: *"Escribe * para ver y seleccionar todos los activos disponibles"*. Al cerrar el dropdown se muestran los nombres de los activos seleccionados.
+
+**2. Indicador** (obligatorio): botones EDR / MON / SIEM / LOGS / BCK / BCKCL. Un solo indicador por operación.
+
+**3. Razón predefinida** (obligatorio): selector desplegable con catálogo estandarizado. El usuario DEBE elegir una razón del catálogo. Opciones:
+- `agent_not_supported` — "Agente no compatible con el hardware o sistema operativo del dispositivo"
+- `network_device` — "Dispositivo de red (switch/router/AP) — no admite instalación de agentes de software"
+- `excluded_backup` — "Excluido de política de backup por decisión de negocio aprobada"
+- `excluded_monitoring` — "Excluido de monitorización — entorno aislado, de pruebas o DMZ"
+- `excluded_siem` — "Excluido de envío de logs a SIEM — dato clasificado o entorno restringido"
+- `legacy_system` — "Sistema legacy sin soporte para herramientas de seguridad actuales"
+- `pending_deployment` — "Pendiente de despliegue — instalación/configuración en curso"
+- `decommissioning` — "Activo en proceso de baja o retirada programada"
+- `cloud_backup_only` — "Política de solo backup en cloud, sin backup local"
+- `local_backup_only` — "Política de solo backup local, sin backup cloud"
+- `temporary_exclusion` — "Exclusión temporal por mantenimiento o ventana de cambio"
+- `other` — "Otro motivo — especificar en descripción"
+
+**4. Descripción adicional** (obligatorio siempre, mínimo 20 caracteres): textarea con contador visible. Detalla la justificación específica del caso concreto. No puede estar vacía aunque la razón sea autoexplicativa. El botón "Crear excepción" está deshabilitado hasta que se cumplan todos los campos obligatorios.
+
+**5. Expira el** (opcional): input datetime-local. Si se deja vacío, la excepción es permanente.
+
+El campo `reason` almacenado en BD es la concatenación legible: `"[Etiqueta de razón]: [Descripción]"`. La columna Motivo en la tabla muestra este valor compuesto.
+
+Cuando se seleccionan múltiples activos, se crea una excepción por cada par (asset_id, indicator). Los activos que ya tengan excepción activa para ese indicador se omiten. La respuesta muestra cuántas se crearon y cuántas se omitieron.
+
+#### Scenario: Razón predefinida obligatoria
+- **GIVEN** un admin con activos y descripción rellenos pero sin razón seleccionada
 - **WHEN** observa el formulario
-- **THEN** el botón "Crear excepción" está deshabilitado y el contador muestra "10/20 mínimo"
+- **THEN** el botón "Crear excepción" está deshabilitado
 
-#### Scenario: Crear excepción exitosamente
-- **GIVEN** un admin con activo seleccionado, indicador "EDR" y motivo ≥20 chars
-- **WHEN** pulsa "Crear excepción"
-- **THEN** la excepción se crea, la tabla se actualiza y aparece un toast de confirmación con "Excepción creada para [nombre activo] — EDR"
+#### Scenario: Descripción obligatoria siempre
+- **GIVEN** un admin que selecciona "Dispositivo de red" como razón
+- **WHEN** deja la descripción con menos de 20 caracteres
+- **THEN** el botón "Crear excepción" permanece deshabilitado
 
-#### Scenario: Excepción duplicada
-- **GIVEN** ya existe una excepción activa para ese activo e indicador
-- **WHEN** se intenta crear
-- **THEN** el formulario muestra un error inline "Ya existe una excepción activa para este indicador en este activo"
+#### Scenario: Motivo compuesto visible en tabla
+- **GIVEN** razón "Dispositivo de red" y descripción "Switch Cisco del CPD principal"
+- **WHEN** la excepción se guarda y aparece en la tabla
+- **THEN** la columna "Motivo" muestra "Dispositivo de red: Switch Cisco del CPD principal"
+
+#### Scenario: Búsqueda con asterisco muestra todos los activos
+- **GIVEN** un admin escribe "*" en el campo de activos
+- **THEN** dropdown con todos los activos disponibles y checkboxes
+
+#### Scenario: Selección múltiple visible al cerrar dropdown
+- **GIVEN** un admin marca 3 activos
+- **WHEN** cierra el dropdown
+- **THEN** el campo muestra "core-switch-01, access-switch-02, router-edge-01"
+
+#### Scenario: Creación en múltiples activos con omisión
+- **GIVEN** 3 activos seleccionados, 1 ya tiene excepción activa
+- **WHEN** se confirma la creación
+- **THEN** toast: "2 excepciones creadas, 1 omitida (ya existía)"
+
+
+### Requirement: Color unificado de los botones de indicador en el formulario de excepción
+Los botones de selección de indicador (EDR / MON / SIEM / LOGS / BCK / BCKCL) en el formulario SHALL tener todos el mismo color base (por ejemplo, el color primario de la aplicación, `bg-primary/20 text-primary border-primary/40`). El color diferenciado por indicador añade complejidad visual innecesaria en el contexto del formulario. El indicador seleccionado se resalta con `ring-2 ring-primary scale-105`.
+
+#### Scenario: Todos los indicadores con el mismo color base
+- **GIVEN** un admin en el formulario de nueva excepción
+- **WHEN** visualiza los botones de indicador
+- **THEN** todos tienen el mismo estilo base y solo el seleccionado se resalta con ring
 
 ---
 
@@ -109,10 +154,33 @@ Para los badges azules, el tooltip SHALL mostrar el motivo de la excepción y qu
 - **WHEN** se visualiza el activo en la tabla
 - **THEN** el backend no la incluye en el campo exceptions del activo → badge vuelve a rojo
 
+#### Scenario: Origen reporta OK pero existe excepción activa — badge mitad azul mitad verde
+- **GIVEN** un activo con edr_installed=true (origen reporta OK) Y existe una excepción activa para "edr"
+- **WHEN** se visualiza en la tabla
+- **THEN** el badge EDR muestra un gradiente diagonal mitad azul / mitad verde indicando "el dato llegó OK pero la excepción sigue activa"
+- El tooltip muestra: "OK desde el origen. Excepción activa: [motivo]. Considera revocarla."
+
+---
+
+### Requirement: Badge cuadriestad en compliance (verde / azul-verde / azul / rojo)
+La lógica de color de los rectángulos de compliance en la tabla de inventario SHALL ser:
+
+| Estado | Color | Condición |
+|--------|-------|-----------| 
+| Verde puro | `bg-green-900/60 text-green-300 border-green-700` | Origen reporta OK. Sin excepción activa. |
+| Mitad azul / mitad verde | Gradiente diagonal `from-blue-900/60 to-green-900/60`, texto blanco | Origen reporta OK **Y** existe excepción activa (excepción ya no necesaria — considerar revocar) |
+| Azul puro | `bg-blue-900/60 text-blue-300 border-blue-700` | Origen reporta KO. Excepción activa justifica el incumplimiento. |
+| Rojo puro | `bg-red-900/60 text-red-300 border-red-700` | Origen reporta KO. Sin excepción activa. |
+
+El estado "mitad azul / mitad verde" es un aviso visual: el problema técnico se ha resuelto pero la excepción administrativa sigue abierta. No es un error, pero invita al admin a revocar la excepción obsoleta.
+
 ---
 
 ### Requirement: Leyenda de colores en pie de tabla de inventario
-La leyenda al pie de la tabla de inventario SHALL incluir los tres estados:
-- 🟢 OK — el origen de datos reporta el servicio activo
-- 🔵 Excepción — incumplimiento justificado y registrado
-- 🔴 KO — incumplimiento sin justificar
+La leyenda al pie de la tabla de inventario SHALL mostrar únicamente los rectángulos de compliance (no círculos) con su significado. Los cuatro estados:
+- Rectángulo **verde** → OK — el origen reporta el servicio activo
+- Rectángulo **azul-verde** (gradiente) → OK con excepción activa — el servicio está activo pero la excepción no ha sido revocada
+- Rectángulo **azul** → Excepción — incumplimiento justificado y registrado
+- Rectángulo **rojo** → KO — incumplimiento sin justificar
+
+No se mostrarán círculos ni ningún otro elemento gráfico adicional. El rectángulo es el único indicador visual de la leyenda.

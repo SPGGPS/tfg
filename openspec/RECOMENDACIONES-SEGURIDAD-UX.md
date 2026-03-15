@@ -53,7 +53,7 @@ Añadir `Cache-Control: no-store` en endpoints que devuelven datos de inventario
 El endpoint GET /v1/auth/me/avatar no debe revelar si un user_id existe o no mediante el código de respuesta (404 vs 403). Devolver siempre el avatar del usuario autenticado (no aceptar user_id externo en la URL).
 
 #### SEC-14: Logging estructurado con correlation ID
-Añadir un `X-Request-ID` header en todas las peticiones (generado por el frontend o por Nginx). El backend debe propagarlo en todos los logs para facilitar la trazabilidad en auditorías.
+Añadir un `X-Request-ID` header en todas las peticiones (generado por el frontend o por Traefik mediante middleware). El backend debe propagarlo en todos los logs para facilitar la trazabilidad en auditorías.
 
 ---
 

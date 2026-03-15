@@ -14,9 +14,10 @@ CMDB centralizado con activos (servidores, red), ingesta desde VMware/Veeam/Moni
 
 | Decisión | Rationale |
 |----------|-----------|
-| Discriminador `type` | server_physical, server_virtual, switch, router, ap permiten extensión sin herencia múltiple |
+| Discriminador `type` | server_physical, server_virtual, switch, router, ap, **database** permiten extensión sin herencia múltiple |
 | Upsert por UUID/MAC | Evitar duplicados en ingestas; identificadores únicos de fuentes externas |
 | Tabla Asset-Tag N:M | Un activo muchas tags, una tag muchos activos; CASCADE al borrar tag manual |
+| database como tipo propio | Las bases de datos son activos de primera clase con campos específicos (engine, port, replication) que no encajan en servidores ni en red. Permiten compliance independiente y visibilidad directa en el inventario |
 
 ## Risks / Trade-offs
 

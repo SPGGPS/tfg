@@ -4,12 +4,62 @@
 
 ### Requirement: Modelo Asset polimórfico
 
-El modelo Asset SHALL incluir un discriminador 'type' con valores server_physical, server_virtual, switch, router, ap.
+El modelo Asset SHALL incluir un discriminador 'type' con valores: `server_physical`, `server_virtual`, `switch`, `router`, `ap`, `database`.
 
 #### Scenario: Tipos de activo soportados
 - **GIVEN** un activo en el inventario
 - **WHEN** se consulta su tipo
-- **THEN** el campo type debe ser uno de: server_physical, server_virtual, switch, router, ap
+- **THEN** el campo type debe ser uno de: server_physical, server_virtual, switch, router, ap, database
+
+### Requirement: Campos específicos para tipo database
+El modelo Asset SHALL incluir campos opcionales específicos para activos de tipo `database`, divididos en dos niveles: campos de resumen (visibles en tabla) y campos de detalle (visibles solo en la página de detalle).
+
+**Campos de resumen (en tabla y detalle):**
+- `db_engine` (string enum) — motor de base de datos. Valores válidos:
+  - Relacionales: `postgresql`, `mysql`, `mariadb`, `oracle`, `oracle_xe`, `sqlserver`, `sqlserver_express`, `sqlserver_standard`, `sqlserver_developer`, `sqlserver_azure`, `db2`, `sqlite`
+  - NoSQL documentales: `mongodb`, `couchdb`, `firestore`
+  - NoSQL clave-valor: `redis`, `memcached`, `dynamodb`
+  - NoSQL columnar: `cassandra`, `hbase`, `bigquery`
+  - NoSQL grafo: `neo4j`, `arangodb`
+  - Búsqueda: `elasticsearch`, `opensearch`, `solr`
+  - Cloud managed: `aurora_mysql`, `aurora_postgresql`, `azure_sql`, `cloud_spanner`, `cloud_sql`
+  - `other` — para cualquier otro motor
+- `db_version` (string) — versión del motor (ej. "16.2", "19c", "2022")
+- `db_size_gb` (int) — tamaño total de los datos en GB
+- `db_host` (string) — hostname o IP del servidor que aloja la base de datos
+- `db_port` (int) — puerto de escucha
+- `db_replication` (bool, default False) — tiene replicación activa
+- `db_cluster` (string | null) — nombre del cluster o grupo de disponibilidad
+
+**Campos de detalle extendido (solo en GET /v1/assets/{id}):**
+- `db_schemas` (array de objetos) — esquemas/bases de datos alojados. Cada objeto contiene:
+  - `name` (string) — nombre del esquema
+  - `size_gb` (float | null) — tamaño en GB
+  - `table_count` (int | null) — número de tablas
+  - `owner` (string | null) — propietario o schema owner
+- `db_users` (array de objetos) — usuarios/roles de la base de datos. Cada objeto contiene:
+  - `username` (string) — nombre del usuario
+  - `role` (string) — rol (ej. "dba", "read_only", "read_write", "backup", "monitoring")
+  - `last_login` (datetime | null) — último acceso registrado
+- `db_connections_max` (int | null) — número máximo de conexiones configurado
+- `db_connections_active` (int | null) — conexiones activas en el momento de la última sync
+- `db_encoding` (string | null) — codificación del servidor (ej. "UTF-8", "AL32UTF8")
+- `db_timezone` (string | null) — zona horaria configurada
+- `db_ha_mode` (string | null) — modo de alta disponibilidad (ej. "primary", "replica", "standby", "none")
+- `db_ssl_enabled` (bool | null) — conexiones SSL/TLS obligatorias
+- `db_audit_enabled` (bool | null) — auditoría de accesos activada en el motor
+- `db_last_vacuum` (datetime | null) — fecha del último mantenimiento/vacuum (PostgreSQL/MySQL)
+- `db_notes` (text | null) — notas libres del administrador sobre esta instancia
+
+#### Scenario: Campos de resumen para tipo database
+- **GIVEN** un activo de tipo database en la tabla de inventario
+- **WHEN** se visualiza la fila
+- **THEN** la columna "Tipo" muestra el badge "BD" y el fabricante muestra el db_engine (ej. "PostgreSQL")
+
+#### Scenario: Campos de detalle para tipo database
+- **GIVEN** un activo de tipo database
+- **WHEN** se consulta GET /v1/assets/{id}
+- **THEN** incluye db_schemas, db_users, db_connections_max, db_connections_active, db_encoding, db_timezone, db_ha_mode, db_ssl_enabled, db_audit_enabled
 
 ### Requirement: Endpoint POST /v1/assets/bulk-tags
 
@@ -94,6 +144,16 @@ El modelo Asset SHALL incluir campos opcionales específicos según el tipo, par
 - **WHEN** se consulta su detalle
 - **THEN** incluye campos: model (string), coverage_area (string), connected_clients (int)
 
+#### Scenario: Campos para bases de datos (database) — resumen
+- **GIVEN** un activo de tipo database
+- **WHEN** se consulta GET /v1/assets (listado)
+- **THEN** incluye: db_engine (enum), db_version, db_size_gb, db_host, db_port, db_replication, db_cluster
+
+#### Scenario: Campos para bases de datos (database) — detalle extendido
+- **GIVEN** un activo de tipo database
+- **WHEN** se consulta GET /v1/assets/{id} (detalle)
+- **THEN** incluye además: db_schemas (array con name/size_gb/table_count/owner), db_users (array con username/role/last_login), db_connections_max, db_connections_active, db_encoding, db_timezone, db_ha_mode, db_ssl_enabled, db_audit_enabled, db_last_vacuum, db_notes
+
 
 
 ### Requirement: Autenticación con OpenID Connect
@@ -139,3 +199,11 @@ El parámetro `search` SHALL buscar en todos los campos textuales: name, ips, ve
 - **GIVEN** un cliente con search=cisco
 - **WHEN** realiza GET /v1/assets?search=cisco
 - **THEN** devuelve activos cuyo vendor, model o etiquetas contengan "cisco" (case-insensitive)
+
+### Requirement: Parámetros de ordenación en GET /v1/assets
+El endpoint GET /v1/assets SHALL aceptar los parámetros `sort_by` y `sort_order` para ordenar resultados. El parámetro `sort_by` SHALL aceptar los valores: `name`, `type`, `vendor`, `source`, `last_sync`, `created_at`, `last_backup_local`, `last_backup_cloud`. Para campos datetime nullable (`last_backup_local`, `last_backup_cloud`), los registros con valor NULL SHALL ordenarse al final independientemente del sentido de la ordenación (NULLS LAST).
+
+#### Scenario: Ordenar por last_backup_local con NULLS LAST
+- **GIVEN** una consulta GET /v1/assets?sort_by=last_backup_local&sort_order=asc
+- **WHEN** hay activos con y sin backup local
+- **THEN** los activos con backup aparecen ordenados por fecha ascendente; los que tienen last_backup_local=null aparecen al final

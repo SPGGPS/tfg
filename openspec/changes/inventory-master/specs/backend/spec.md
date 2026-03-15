@@ -38,6 +38,39 @@ El backend NO debe exponer endpoints PUT/PATCH para modificar estos campos direc
 - **WHEN** el backend procesa el payload
 - **THEN** actualiza last_backup_local/cloud y last_sync, sin tocar edr_installed ni monitored
 
+### Requirement: Tipo database en el modelo Asset
+El enum `AssetType` SHALL incluir el valor `database`. El modelo Asset SHALL incluir los campos de resumen y detalle para este tipo:
+
+**Campos de resumen** (columnas en Asset): `db_engine` (String enum con los motores del catálogo), `db_version` (String), `db_size_gb` (Integer), `db_host` (String), `db_port` (Integer), `db_replication` (Boolean, default False), `db_cluster` (String nullable).
+
+**Campos de detalle extendido** (JSON columns o tablas relacionadas para el endpoint de detalle):
+- `db_schemas` (JSON array) — lista de esquemas: [{name, size_gb, table_count, owner}]
+- `db_users` (JSON array) — lista de usuarios: [{username, role, last_login}]
+- `db_connections_max` (Integer nullable)
+- `db_connections_active` (Integer nullable)
+- `db_encoding` (String nullable)
+- `db_timezone` (String nullable)
+- `db_ha_mode` (String nullable — "primary", "replica", "standby", "none")
+- `db_ssl_enabled` (Boolean nullable)
+- `db_audit_enabled` (Boolean nullable)
+- `db_last_vacuum` (DateTime nullable)
+- `db_notes` (Text nullable)
+
+Los campos `db_schemas` y `db_users` se almacenan como JSON (JSONB en PostgreSQL) para flexibilidad. Se incluyen en `to_dict()` solo cuando se llama desde el endpoint de detalle (`GET /v1/assets/{id}`), no en el listado para evitar sobrecarga.
+
+#### Scenario: Asset de tipo database con campos específicos
+- **GIVEN** un activo de tipo database ingresado con db_engine="postgresql" y db_version="16.2"
+- **WHEN** se consulta GET /v1/assets/{id}
+- **THEN** la respuesta incluye todos los campos de resumen y de detalle extendido
+
+### Requirement: Ordenación con NULLS LAST para campos datetime
+Al ordenar por campos datetime nullable (`last_backup_local`, `last_backup_cloud`, `last_sync`), el backend SHALL usar `NULLS LAST` en la cláusula ORDER BY para que los registros sin valor aparezcan siempre al final, tanto en ordenación ascendente como descendente.
+
+#### Scenario: NULLS LAST en last_backup_local
+- **GIVEN** activos con y sin last_backup_local
+- **WHEN** se ordena por ese campo en cualquier dirección
+- **THEN** los activos con null siempre aparecen al final de la lista
+
 
 
 ### Requirement: Campos extendidos en modelo Asset
@@ -53,3 +86,11 @@ La lógica de filtrado por `search` SHALL incluir todos los campos textuales del
 
 ### Requirement: Detalle de activo con audit reciente
 El endpoint GET /v1/assets/{id} SHALL incluir en la respuesta un campo `recent_audit` con los últimos 10 registros de AuditLog donde entity_id == asset_id, ordenados por timestamp desc.
+
+### Requirement: Ordenación con NULLS LAST para campos datetime
+Al ordenar por campos datetime nullable (`last_backup_local`, `last_backup_cloud`, `last_sync`), el backend SHALL usar `NULLS LAST` en la cláusula ORDER BY para que los registros sin valor aparezcan siempre al final, tanto en ordenación ascendente como descendente.
+
+#### Scenario: NULLS LAST en last_backup_local
+- **GIVEN** activos con y sin last_backup_local
+- **WHEN** se ordena por ese campo en cualquier dirección
+- **THEN** los activos con null siempre aparecen al final de la lista
