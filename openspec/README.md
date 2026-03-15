@@ -9,8 +9,9 @@ Para aplicar los changes con las dependencias correctas, usar este orden:
 1. **login** — Auth primero (Keycloak OIDC + PKCE, RBAC).
 2. **app-core** — Scaffold full-stack (FastAPI + React + OpenAPI + DB).
 3. **inventory-master**, **tags-management**, **user-profile** — Dominios de negocio (orden intercambiable).
-4. **audit-logs** — Auditoría (depende de auth y de los endpoints que registra).
-5. **unit-test** — Especificaciones de prueba (validar tras implementar).
+4. **exceptions** — Excepciones de compliance (depende de inventory-master y audit-logs).
+5. **audit-logs** — Auditoría (depende de auth y de los endpoints que registra).
+6. **unit-test** — Especificaciones de prueba (validar tras implementar).
 
 Comando por change:
 

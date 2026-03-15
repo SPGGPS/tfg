@@ -30,7 +30,8 @@ rules:
     - Definir modelos polimórficos para activos (discriminador: type [server_physical, server_virtual, switch, router, ap]).
     - El modelo Asset debe incluir un array 'tags' que contenga objetos Tag (id, name, color, origin).
     - Endpoint 'POST /v1/assets/bulk-tags': Para asignar etiquetas manuales a múltiples asset_ids simultáneamente.
-    - Campos obligatorios de cumplimiento: 'edr_installed' (bool), 'last_backup' (datetime), 'monitored' (bool), 'logs_enabled' (bool).
+    - Campos de compliance obligatorios: 'edr_installed' (bool), 'monitored' (bool), 'siem_enabled' (bool), 'logs_enabled' (bool), 'last_backup_local' (datetime|null), 'last_backup_cloud' (datetime|null). Todos son de **solo escritura por el sistema de ingesta** — no son editables por usuarios. El verde/rojo en UI refleja lo que cada origen de datos externo ha reportado en la última sincronización.
+    - El campo 'last_backup' queda eliminado, sustituido por 'last_backup_local' y 'last_backup_cloud'.
     - Validación de seguridad: Patterns y maxLength en todos los inputs para mitigar inyecciones.
   backend_code:
     - Lógica de Auto-Tagging: Al procesar datos de VMware o Red, asignar etiquetas de sistema (ej: 'Cisco' si el vendor es cisco, 'Virtual' si viene de vCenter).
@@ -42,10 +43,12 @@ rules:
     - Estilo de Etiquetas: Las manuales deben tener colores vibrantes (definidos por admin) y las automáticas colores neutros (sistema).
     - Acciones Masivas: Tabla con checkboxes para selección múltiple y botón "Asignar Etiquetas".
     - Indicador de frescura: Mostrar tiempo transcurrido desde la última sincronización horaria.
-    - Historificacion: Se tiene que poder señalar en que momento se quiere ver el inventario. Habra una opcion Live o un desplegable con la hora y el dia. Como la syn es cada 60 miutos solo saldran las horas 
+    - Historificacion: Selector de fecha y hora (datetime-local) que permite elegir cualquier momento exacto para ver el inventario en ese instante. Opción de volver a Live con un botón. El header muestra si se está en modo Live (verde) o Histórico (ámbar) con la fecha/hora seleccionada.
     - Busqueda: En el dashboard se mostrara un boton de busqueda, que sera, por todos los campos que se muestren.
     - Ordenar: Se podra ordenar por todos los campos que se muestren.
-    - Estado: La información que indique si hay agente instaladoo esta dado de alta en EDR, MONICA, ... mostrara un punto rojo en caso de no estarlo y uno verde si lo esta. En el caso del backup mostrará la fecha del ultimo backup.
+    - Estado: Los indicadores de compliance se muestran como rectángulos con texto corto en su interior, no como puntos. Las etiquetas son: EDR, MON (monitorización), SIEM, LOGS, BCK (backup local), BCKCL (backup cloud). Color verde si el indicador está activo/OK, rojo si no lo está. Para BCK y BCKCL se muestra la fecha del último backup en un tooltip al hacer hover.
+    - Filtro por etiqueta: Al hacer click en cualquier etiqueta mostrada en la tabla del inventario, se activa un filtro que muestra únicamente los activos que tienen esa etiqueta. Un segundo click en la misma etiqueta (o botón ✕ en el filtro activo) elimina el filtro. La etiqueta activa se resalta visualmente con un ring. Solo puede haber un filtro de etiqueta activo a la vez.
+    - Perfil en header: El nombre de usuario y el rol deben mostrarse en la esquina superior derecha del header, con el nombre en texto grande (font-semibold, text-base) y el rol en texto pequeño (text-xs) debajo, junto al avatar. El header es visible en todas las páginas autenticadas.
   k8s_manifests:
     - Helm: Configurar CronJobs (0 * * * *) para las tareas de sincronización periódica.
     - Gestión de Secretos: Inyectar credenciales de vCenter/Veeam/Monica de forma segura.

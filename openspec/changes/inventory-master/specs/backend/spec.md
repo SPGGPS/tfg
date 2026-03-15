@@ -18,12 +18,38 @@ El backend SHALL mantener un historial por hora que permita consultar el inventa
 - **WHEN** un cliente solicita GET /v1/assets?as_of=2026-03-15T13:00:00Z
 - **THEN** el backend retorna el inventario tal como estaba a esa hora
 
-### Requirement: Compliance fields en el modelo de datos
-El backend SHALL incluir en el modelo Asset los campos: `edr_installed`, `last_backup`, `monitored`, `logs_enabled`, `last_sync`, `name`, `ips`, `vendor`, `source`, y campos específicos por tipo (ram_gb, total_disk_gb, cpu_count, os para servidores; model, port_count, firmware_version para routers; etc.).
+### Requirement: Compliance fields — escritos exclusivamente por la ingesta
+El backend SHALL incluir en el modelo Asset los siguientes campos de compliance. **Ninguno de estos campos es modificable por endpoints de usuario** — solo se actualizan a través del endpoint de ingestión `/v1/assets/ingest` llamado por los CronJobs de sincronización:
 
-#### Scenario: Respuesta con compliance y datos básicos
-- **GIVEN** un activo en la base de datos
-- **WHEN** un cliente llama GET /v1/assets
-- **THEN** la respuesta contiene todos los campos de compliance, básicos y específicos según el tipo
+| Campo | Origen de ingesta | Significado |
+|-------|-------------------|-------------|
+| `edr_installed` (bool) | CrowdStrike / SentinelOne | El agente EDR reporta el activo como protegido |
+| `monitored` (bool) | Zabbix / Nagios | El activo está dado de alta y enviando métricas |
+| `siem_enabled` (bool) | SIEM / Syslog | El activo envía logs al SIEM |
+| `logs_enabled` (bool) | Monitorización / Syslog | Generación de logs del sistema activa |
+| `last_backup_local` (datetime\|null) | Veeam local/on-prem | Fecha del último backup local exitoso; null = nunca |
+| `last_backup_cloud` (datetime\|null) | Veeam cloud/offsite | Fecha del último backup cloud exitoso; null = nunca |
+| `last_sync` (datetime) | Cualquier fuente | Timestamp de la última ingesta recibida |
+
+El backend NO debe exponer endpoints PUT/PATCH para modificar estos campos directamente. Solo `POST /v1/assets/ingest` (rol admin, llamado por CronJobs) puede escribirlos.
+
+#### Scenario: Ingesta actualiza solo los campos que reporta el origen
+- **GIVEN** una ingesta de Veeam que solo envía datos de backup
+- **WHEN** el backend procesa el payload
+- **THEN** actualiza last_backup_local/cloud y last_sync, sin tocar edr_installed ni monitored
 
 
+
+### Requirement: Campos extendidos en modelo Asset
+El backend SHALL añadir al modelo Asset los campos: `serial_number` (String, nullable), `location` (String, nullable), `description` (Text, nullable), `purchase_date` (Date, nullable), `warranty_expiry` (Date, nullable). Estos campos participan en la búsqueda full-text del endpoint GET /v1/assets.
+
+#### Scenario: Búsqueda por serial_number
+- **GIVEN** un activo con serial_number definido
+- **WHEN** se llama GET /v1/assets?search=<serial>
+- **THEN** el activo aparece en resultados
+
+### Requirement: Búsqueda extendida en backend
+La lógica de filtrado por `search` SHALL incluir todos los campos textuales del activo: name, vendor, source, os, model, serial_number, location, description, firmware_version, mac_address, IPs (cast a string) y nombres de etiquetas asociadas.
+
+### Requirement: Detalle de activo con audit reciente
+El endpoint GET /v1/assets/{id} SHALL incluir en la respuesta un campo `recent_audit` con los últimos 10 registros de AuditLog donde entity_id == asset_id, ordenados por timestamp desc.
