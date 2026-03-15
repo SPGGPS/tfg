@@ -33,3 +33,11 @@ El frontend SHALL usar un componente ProtectedRoute que verifique roles antes de
 - **GIVEN** un usuario con rol 'editor'
 - **WHEN** la ruta requiere roles ['admin', 'editor']
 - **THEN** el contenido se renderiza correctamente
+
+### Requirement: Rate limiting en endpoints de autenticación
+El backend SHALL aplicar rate limiting (por IP y/o por identificador de cliente) a los endpoints relacionados con login y refresco de tokens, para mitigar fuerza bruta y abuso.
+
+#### Scenario: Rate limit en login
+- **GIVEN** un endpoint de login o token refresh
+- **WHEN** un cliente supera el límite configurado (p.ej. N peticiones por minuto por IP)
+- **THEN** la API responde con HTTP 429 Too Many Requests

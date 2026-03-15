@@ -34,7 +34,7 @@ context: |
         * Alta en Monitorización y envío de logs.
 
   Security Foundations (Anti-Exploit):
-    - Autenticación: Delegada a Keycloak (Authorization Code Flow + PKCE).
+    - Autenticación: Delegada a Keycloak (Authorization Code Flow + PKCE). Estándares: RFC 6749 (OAuth 2.0), RFC 7636 (PKCE), OpenID Connect Core 1.0; OpenAPI 3.1.0.
     - Protección OWASP: Prevención de SQLi (ORM con parámetros), XSS (Sanitización), CSRF y Secure Headers.
     - K8s Security: NetworkPolicies "Deny-All", contenedores Non-Root y RBAC de infraestructura.
 
@@ -45,7 +45,7 @@ rules:
     - Seguir OpenAPI 3.1.0 con 'securitySchemes' tipo 'openIdConnect' (Keycloak URL).
     - Modelos Asset: Incluir campos de auditoría (edr_status, backup_status, monica_id, etc.).
     - Endpoints de Ingesta: Protegidos con scopes/roles específicos ('/ingest/vmware', '/ingest/veeam').
-    - Validación: 'pattern', 'format' y 'maxLength' obligatorios en todos los inputs.
+    - "Validación: 'pattern', 'format' y 'maxLength' obligatorios en todos los inputs."
     - Anotación 'x-required-roles' en cada path (Admin, Editor, Viewer).
 
   backend_code:
@@ -55,12 +55,14 @@ rules:
     - Integraciones: Clientes asíncronos para atacar APIs externas (VMware, Veeam).
     - Healthchecks: Validar conectividad con Postgres HA.
     - Historificación: Tiene que guardarse versiones en la bbdd para poder consultar el inventario en un momento pasado del tiempo. Tiene que guarda un año
+    - Rate limiting: Endpoints de login y token refresh deben tener rate limiting por IP y/o por cliente (mitigar fuerza bruta).
 
   frontend_code:
     - Seguridad: Gestión de tokens en cookies Secure/HttpOnly y flujo PKCE.
     - UI/UX: Dashboard de "Health Score" con indicadores visuales de cumplimiento.
     - RBAC Visual: Wrappers para ocultar o deshabilitar acciones según rol.
     - Estabilidad: Skeletons y manejo de errores que no revelen detalles internos.
+    - Compatibilidad: La UI debe funcionar en navegadores modernos (evergreen): Chrome, Firefox, Safari, Edge (últimas dos versiones principales); degradación controlada en navegadores antiguos.
 
   k8s_manifests:
     - Metodología Helm: Organización modular con subcharts y gestión de Secretos (vCenter/Veeam keys).

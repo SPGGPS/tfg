@@ -1,0 +1,112 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-sync-job
+  namespace: tfg
+spec:
+  schedule: "0 * * * *"  # Cada hora a las 0 minutos
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: data-sync
+            image: tfg-backend:latest
+            command:
+            - python
+            - -c
+            - |
+              import asyncio
+              import os
+              from datetime import datetime
+              from app.database import get_db
+              from app.models.data_source import DataSource
+              from sqlalchemy import select, update
+              from sqlalchemy.ext.asyncio import AsyncSession
+
+              async def sync_data_sources():
+                  print(f"[{datetime.utcnow()}] Starting data source sync...")
+                  # Aquí iría la lógica real de sincronización con APIs externas
+                  # Por ahora solo actualizamos last_sync
+                  async with AsyncSession(get_db()) as session:
+                      result = await session.execute(
+                          select(DataSource).where(DataSource.is_active == True)
+                      )
+                      data_sources = result.scalars().all()
+
+                      for ds in data_sources:
+                          print(f"Syncing {ds.name}...")
+                          # Actualizar last_sync
+                          await session.execute(
+                              update(DataSource)
+                              .where(DataSource.id == ds.id)
+                              .values(last_sync=datetime.utcnow())
+                          )
+
+                      await session.commit()
+                      print(f"[{datetime.utcnow()}] Sync completed for {len(data_sources)} data sources")
+
+              asyncio.run(sync_data_sources())
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tfg-secrets
+                  key: database-url
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: log-retention-job
+  namespace: tfg
+spec:
+  schedule: "0 2 * * *"  # Todos los días a las 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: log-retention
+            image: tfg-backend:latest
+            command:
+            - python
+            - -c
+            - |
+              import asyncio
+              import os
+              from datetime import datetime, timedelta
+              from app.database import get_db
+              from app.models.audit_log import AuditLog
+              from sqlalchemy import delete
+              from sqlalchemy.ext.asyncio import AsyncSession
+
+              async def cleanup_old_logs():
+                  retention_days = int(os.getenv('LOG_RETENTION_DAYS', '30'))
+                  cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+
+                  print(f"[{datetime.utcnow()}] Cleaning up logs older than {retention_days} days...")
+
+                  async with AsyncSession(get_db()) as session:
+                      # Eliminar logs antiguos
+                      result = await session.execute(
+                          delete(AuditLog).where(AuditLog.created_at < cutoff_date)
+                      )
+                      deleted_count = result.rowcount
+                      await session.commit()
+
+                      print(f"[{datetime.utcnow()}] Deleted {deleted_count} old log entries")
+
+              asyncio.run(cleanup_old_logs())
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tfg-secrets
+                  key: database-url
+            - name: LOG_RETENTION_DAYS
+              valueFrom:
+                configMapKeyRef:
+                  name: tfg-config
+                  key: LOG_RETENTION_DAYS
+          restartPolicy: OnFailure
