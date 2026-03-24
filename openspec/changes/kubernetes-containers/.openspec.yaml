@@ -1,0 +1,12 @@
+schema: openspec/v2
+id: kubernetes-containers
+created: "2026-03-24"
+status: implemented
+priority: high
+estimated_hours: 24
+tags:
+  - cmdb
+  - kubernetes
+  - containers
+  - docker
+  - eol
