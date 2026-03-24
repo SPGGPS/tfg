@@ -1,18 +1,13 @@
 # Tasks: Tags Management
 
-## 1. API y DB
+## 1. Backend
+- [x] 1.1 PUT /v1/tags/{id}: bloquea si origin=system → 400
+- [x] 1.2 DELETE /v1/tags/{id}: bloquea si origin=system → 400. Requiere admin.
+- [x] 1.3 Propagación de color/nombre a activos vinculados tras PUT
+- [x] 1.4 POST /v1/tags: solo etiquetas manuales. Requiere admin.
 
-- [x] 1.1 Diseñar CRUD Tags (GET, POST, PUT, DELETE) en OpenAPI
-- [x] 1.2 Migración: tabla tags, relación asset_tag (M:N)
-
-## 2. Backend
-
-- [x] 2.1 PUT/DELETE /v1/tags/{id} restringidos a admin
-- [x] 2.2 Bloquear modificación de tags con origin=system
-- [x] 2.3 Propagación de cambios a activos vinculados
-
-## 3. Frontend
-
-- [x] 3.1 Dashboard de gestión de etiquetas
-- [x] 3.2 Modal confirmación borrado con nº afectados
-- [ ] 3.3 Selector de color (Chrome-style) e invalidación TanStack Query
+## 2. Frontend
+- [x] 2.1 TagsPage: sección Sistema (20 etiquetas, no editables) + Manual (editables)
+- [x] 2.2 Modal confirmación borrado con número de activos afectados
+- [x] 2.3 Formulario edición: nombre, descripción, color hex
+- [ ] 2.4 Selector de color estilo Chrome (hue slider + saturation picker)

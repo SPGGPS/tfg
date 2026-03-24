@@ -1,87 +1,131 @@
 project: "Inventario Centralizado"
-version: "1.0.0"
+version: "2.0.0"
+status: "released"
+release_date: "2026-03-22"
+last_updated: "2026-03-24"
 
-# Rutas relativas desde la raíz del proyecto
+# Rutas relativas desde la raíz del proyecto TFG (tfg/)
 paths:
   changes: "openspec/changes"
-  specs: "openspec/specs"
   archive: "openspec/changes/archive"
 
-# Configuración del motor
 engine:
   specification_mode: spec-driven
   auto_archive: false
 
-# Project context
-# Define el stack, el dominio de negocio y la lógica de auditoría
+# ─── Contexto global del proyecto ────────────────────────────────────────────
 context: |
-  Tech stack: 
-    - Frontend: React.js (Vite), Tailwind CSS, TanStack Query.
-    - Backend: Python (FastAPI) - Orquestador de Inventario y Resource Server.
-    - Auth & IdP: Keycloak (OIDC + PKCE) con Roles: 'admin', 'editor', 'viewer'.
-    - Database: PostgreSQL HA con PgBouncer (Modelo relacional para activos de red y cómputo).
-    - Infrastructure: Kubernetes (K8s) gestionado vía Helm Charts, Traefik (Ingress Controller nativo de k3s) y Cilium (CNI + NetworkPolicy como capa de red y firewall). Namespace dedicado: `inventory-ssreyes`. HPA habilitado para backend y frontend.
-    - Logs: Deja logs claros de las operaciones en ficheros separados. Peticiones api, cargas bbdd, todos. Con los errores claramente identificados.
+  Nombre: Inventario Centralizado — Ayuntamiento de San Sebastián de los Reyes
+  TFG de gestión CMDB para activos TI municipales.
 
+  Stack:
+    Frontend: React 18 + Vite 5, Tailwind CSS v3, TanStack Query v5, React Router v6
+    Backend:  FastAPI + Python 3.11, SQLAlchemy v2, Pydantic v2, PostgreSQL 16
+    Auth:     Keycloak OIDC+PKCE (saltable con SKIP_AUTH=true en dev)
+    Infra:    Docker Compose (dev) / k3s + Helm (producción)
+              Traefik ingress, Cilium CNI + NetworkPolicy
+              Namespace: inventory-ssreyes
 
-  Domain Knowledge (CMDB Centralizado):
-    - Activos: Servidores (Físicos/Virtuales), Networking (Switches, Routers, APs).
-    - Ingesta Externa: VMware (vCenter), Veeam, EDR (Crowdstrike/SentinelOne), Monica (Assets), Monitorización (Zabbix/Nagios), Syslog.
-    - Lógica de Cumplimiento (Compliance Audit): Verificación de:
-        * Registro en Monica (Asset Management).
-        * Presencia y estado del EDR.
-        * Existencia de Backup reciente en Veeam.
-        * Alta en Monitorización y envío de logs.
+  Arranque local (Docker Compose):
+    docker compose down -v
+    docker compose build --no-cache
+    docker compose up -d
+    Frontend: http://localhost:5173  |  API docs: http://localhost:8000/docs
+    PostgreSQL: localhost:5433 (puerto externo para evitar conflicto con Postgres local)
 
-  Security Foundations (Anti-Exploit):
-    - Autenticación: Delegada a Keycloak (Authorization Code Flow + PKCE). Estándares: RFC 6749 (OAuth 2.0), RFC 7636 (PKCE), OpenID Connect Core 1.0; OpenAPI 3.1.0.
-    - Protección OWASP: Prevención de SQLi (ORM con parámetros), XSS (Sanitización), CSRF y Secure Headers.
-    - K8s Security: NetworkPolicies "Deny-All", contenedores Non-Root y RBAC de infraestructura.
+  Roles RBAC:
+    admin  → acceso total: excepciones, auditoría, etiquetas, localizaciones, fuentes de datos
+    editor → lee todo + edita activos, aplicaciones, etiquetas
+    viewer → solo lectura
 
-# Per-artifact rules
-# Reglas específicas para asegurar consistencia en cada componente
+  Tipos de activo (AssetType):
+    server_physical, server_virtual, vcenter
+    web_server, database
+    switch, router, firewall, load_balancer, ap
+    storage_array
+    k8s_cluster, container
+
+  Branding:
+    Color primario: #C8001D (rojo corporativo Ayuntamiento SSReyes)
+    Tema: claro. Body: #FDF7F7. Cards: #FFFFFF borde #EED8D8
+    Sidebar: degradado #A8001A → #C8001D. Logo blanco (filter: brightness(0) invert(1))
+    IMPORTANTE: los colores de compliance son semánticos y NO deben cambiarse con el branding
+
+  Ingesta externa (fuentes de datos):
+    VMware vCenter, Veeam Backup, EDR (CrowdStrike/SentinelOne), Monica (Assets),
+    Monitorización (Zabbix/Nagios), entrada manual
+
+  Compliance (indicadores auditados por activo):
+    EDR instalado, Monitorizado, SIEM habilitado, Logs habilitados,
+    Backup local reciente, Backup cloud reciente, Registrado en Monica
+
+# ─── Reglas por artefacto ────────────────────────────────────────────────────
 rules:
   openapi_spec:
     - Seguir OpenAPI 3.1.0 con 'securitySchemes' tipo 'openIdConnect' (Keycloak URL).
-    - Modelos Asset: Incluir campos de auditoría (edr_status, backup_status, monica_id, etc.).
-    - Endpoints de Ingesta: Protegidos con scopes/roles específicos ('/ingest/vmware', '/ingest/veeam').
-    - "Validación: 'pattern', 'format' y 'maxLength' obligatorios en todos los inputs."
-    - Anotación 'x-required-roles' en cada path (Admin, Editor, Viewer).
+    - Modelos Asset incluir campos de auditoría (edr_installed, monitored, siem_enabled, etc.).
+    - Anotación 'x-required-roles' en cada path (admin, editor, viewer).
+    - Validación con 'pattern', 'format' y 'maxLength' en todos los inputs de usuario.
+    - Rutas específicas ANTES que rutas con parámetros en FastAPI
+      (ej: /reason-codes/list antes de /{id}).
 
   backend_code:
-    - Autorización: Middleware/Inyectores para validar firma RS256 (JWKS) y roles en el token.
-    - Lógica de Negocio: Reconciliación de activos (unificar datos de múltiples fuentes bajo un mismo ID).
-    - DB: Uso de ORM obligatorio para evitar SQL Injection.
-    - Integraciones: Clientes asíncronos para atacar APIs externas (VMware, Veeam).
-    - Healthchecks: Validar conectividad con Postgres HA.
-    - Historificación: Tiene que guardarse versiones en la bbdd para poder consultar el inventario en un momento pasado del tiempo. Retención de 1 año.
-    - Rate limiting: Endpoints de login y token refresh deben tener rate limiting por IP y/o por cliente (mitigar fuerza bruta). Respuesta HTTP 429 Too Many Requests al superar el límite.
-    - Secure Headers: Todas las respuestas HTTP SHALL incluir X-Content-Type-Options (nosniff), X-Frame-Options (DENY), Strict-Transport-Security (HTTPS) y Content-Security-Policy. Verificable con cualquier cliente HTTP.
+    - Autorización: middleware valida firma RS256 (JWKS) y extrae roles de
+      resource_access.{CLIENT_ID}.roles y realm_access.roles del JWT.
+    - SKIP_AUTH=true inyecta usuario simulado: {sub:"dev-user", roles:["admin"]}.
+    - Enums en to_dict() siempre como string plano:
+        str(self.field).split(".")[-1] if self.field else None
+    - IntegrityError de PostgreSQL → capturar y devolver HTTP 409, nunca 500.
+      Rollback obligatorio antes de relanzar.
+    - ORM obligatorio para todas las queries (sin SQL literal, evita SQLi).
+    - Auto-migración de columnas nuevas vía _auto_migrate() en init_db.py
+      (no se usa Alembic — ALTER TABLE ADD COLUMN IF NOT EXISTS).
+    - Historificación: AssetHistory snapshot por asset, retención 1 año.
+    - Tagging automático: apply_auto_tags() + apply_eol_tags() tras cualquier
+      cambio de asset.
+    - Secure Headers: X-Content-Type-Options, X-Frame-Options, HSTS, CSP
+      en todas las respuestas HTTP.
+    - Rate limiting en endpoints de login/token refresh (HTTP 429).
 
   frontend_code:
-    - Seguridad: Gestión de tokens en cookies Secure/HttpOnly y flujo PKCE.
-    - UI/UX: Dashboard de "Health Score" con indicadores visuales de cumplimiento.
-    - RBAC Visual: Wrappers para ocultar o deshabilitar acciones según rol.
-    - Estabilidad: Skeletons y manejo de errores que no revelen detalles internos.
-    - Compatibilidad: La UI debe funcionar en navegadores modernos (evergreen): Chrome, Firefox, Safari, Edge (últimas dos versiones principales); degradación controlada en navegadores antiguos.
+    - TanStack Query v5: siempre envolver mutate en arrow function:
+        onSubmit={d => mut.mutate(d)}  — nunca  onSubmit={mut.mutate}
+    - Hooks siempre en nivel superior del componente, nunca dentro de
+      objetos, arrays ni condicionales.
+    - invalidateQueries con exact:false para invalidar todas las variantes
+      de una queryKey.
+    - Tabs activos: border-red-600 text-red-700 font-semibold.
+      Tabs inactivos: text-gray-500.
+    - Badges: bg-X-100 text-X-800 border border-X-400/500 font-semibold.
+      Nunca dark-mode en tema claro.
+    - RBAC visual: ocultar/deshabilitar acciones según rol del usuario.
+    - Skeletons y manejo de errores que no revelen detalles internos.
 
   k8s_manifests:
-    - Metodología Helm: Chart único `inventario-centralizado` con templates para todos los componentes. Namespace fijo `inventory-ssreyes` en todos los resources (metadata.namespace).
-    - Ingress Controller: Traefik (instalado por defecto en k3s). IngressRoute o Ingress estándar de Kubernetes apuntando al Service del frontend. Traefik no requiere instalación adicional en k3s.
-    - Red y Firewall: Cilium como CNI y capa de NetworkPolicy. Todas las NetworkPolicies usan `spec.podSelector` y `spec.ingress/egress` con `ports` explícitos. Política base deny-all por namespace, con allows explícitos por puerto y etiqueta.
-    - Puertos declarados explícitamente en NetworkPolicies y en containerPort de cada Deployment:
-        * frontend   → containerPort 80 (Traefik → Service → Pod)
-        * backend    → containerPort 8000 (frontend → backend, CronJobs → backend)
-        * postgres   → containerPort 5432 (solo desde backend y CronJobs)
-        * keycloak   → containerPort 8080 (solo desde backend para validación JWKS)
-    - Cilium requiere que los puertos estén abiertos tanto en la NetworkPolicy de salida (egress) del pod origen como en la de entrada (ingress) del pod destino. Ambos lados deben especificarse.
-    - HA: Para k3s local, réplicas=1 por defecto en values.yaml. En producción escalar a 3.
-    - Automatización: CronJobs en namespace `inventory-ssreyes` para snapshot horario, purga de audit_logs (180 días), purga de history (1 año) y expiración de excepciones.
-    - Secretos: Secret `inventario-secrets` con DATABASE_URL, JWT_SECRET. ConfigMap `inventario-config` con KEYCLOAK_URL, CORS_ORIGINS, SKIP_AUTH.
-    - Non-root: todos los contenedores con securityContext.runAsNonRoot=true, runAsUser=1001.
-    - PVC: `avatars-pvc` montado en el pod de backend en /tmp/avatars para persistir imágenes de avatar.
+    - Chart único 'inventario-centralizado'. Namespace fijo 'inventory-ssreyes'
+      en todos los resources.
+    - Traefik como Ingress Controller (nativo k3s).
+    - Cilium CNI + NetworkPolicies. Política base deny-all por namespace,
+      allows explícitos por puerto y etiqueta (ambos lados egress+ingress).
+    - Puertos declarados en NetworkPolicies y containerPort:
+        frontend  → 80 (Traefik → Service → Pod)
+        backend   → 8000
+        postgres  → 5432 (solo desde backend y CronJobs)
+        keycloak  → 8080 (solo desde backend para JWKS)
+    - Secrets: 'inventario-secrets' con DATABASE_URL. ConfigMap: 'inventario-config'
+      con KEYCLOAK_URL, CORS_ORIGINS, SKIP_AUTH.
+    - Non-root: runAsNonRoot=true, runAsUser=1001 en todos los contenedores.
+    - PVC 'avatars-pvc' montado en backend en /tmp/avatars.
+    - CronJobs en inventory-ssreyes: snapshot horario, purge-audit (180d),
+      purge-history (365d), expire-exceptions (diario), eol-sync (03:00 UTC).
+
+  docker:
+    - Siempre usar --no-cache en builds: docker compose build --no-cache
+    - Puerto externo PostgreSQL: 5433 (no 5432, para evitar conflicto local)
+    - VITE_SKIP_AUTH es build-time arg — requiere rebuild al cambiar.
 
   tasks:
     - Dividir en bloques de máximo 4h.
-    - Priorizar diseño de DB relacional y lógica de validación/sanitización antes que la estética.
+    - Priorizar diseño de BD y lógica de negocio antes que la estética.
     - Configurar mappers de roles en Keycloak como paso crítico inicial.
+    - Marcar tareas como [x] en tasks.md al completarlas.

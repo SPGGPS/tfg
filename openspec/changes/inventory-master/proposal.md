@@ -1,69 +1,27 @@
 id: inventory-master
 
-# openspec/changes/inventory-master/.openspec.yaml
-schema: spec-driven
-created: 2026-03-14
-
-# Contexto: CMDB Centralizado, Auditoría de Cumplimiento y Etiquetado Dinámico
+# Contexto
 context: |
-  Feature: Centralized Inventory, Compliance Audit & Asset Tagging
-  Domain: Gestión de activos (Servidores físicos/virtuales, Networking).
-  Integrations: Ingesta de datos desde VMware (vCenter), Veeam (Backups), Monica (Assets), EDR y Monitorización.
-  Compliance Logic: Cada activo debe validar el estado de: EDR, Backup, Monitorización y Logs.
-  Sync Frequency: Ejecución horaria (Cada 60 minutos).
-  Tagging System: 
-    - Automáticas: Asignadas por backend según tipo/estado (ej: 'Virtual', 'Cisco', 'On').
-    - Manuales: Creadas por Admin y asignables a activos de forma individual o masiva.
+  Feature: Inventario centralizado de activos (CMDB)
+  Domain: Gestión de activos IT — servidores, red, bases de datos.
+  Integraciones: VMware vCenter, Veeam, EDR (CrowdStrike/SentinelOne), Monica, Zabbix/Nagios.
+  Compliance: EDR, backup local, backup cloud, monitorización, SIEM, logs.
+  Etiquetado dual: automático (sistema) y manual (admin).
 
-# Definición del Cambio
+# Qué implementa este change
 proposal: |
-  Definir el contrato de API para la gestión del inventario, ingesta masiva y etiquetado:
-  1. Esquema de activos unificado para Servidores y Red con soporte para etiquetas.
-  2. Endpoints de ingesta protegidos para sincronización horaria con herramientas externas.
-  3. Campos de auditoría de seguridad (EDR_status, backup_status, etc.).
-  4. Sistema de etiquetas dual: Automáticas (Backend) y Manuales (Admin).
-  5. Funcionalidad de asignación masiva de etiquetas manuales a activos seleccionados.
+  1. Modelo Asset polimórfico con discriminador "type":
+       server_physical, server_virtual, switch, router, ap, database
+  2. Campos de compliance: edr_installed, monitored, siem_enabled, logs_enabled,
+       last_backup_local, last_backup_cloud, last_sync
+     (solo escritura por ingesta — no editables por usuarios)
+  3. Tipo "database" con campos específicos: db_engine, db_version, db_port,
+       db_replication, db_schemas, db_users, etc.
+  4. Etiquetas de sistema generadas automáticamente por tagging_service.py
+  5. Bulk tags: POST /v1/assets/bulk-tags para asignar etiquetas a múltiples activos
+  6. Tabla de inventario con badges de compliance, ordenación, filtros, paginación
+  7. Histórico horario (AssetHistory) con parámetro as_of
+  8. Página de detalle /assets/:id
 
-# Reglas de implementación para el inventario
-rules:
-  openapi_spec:
-    - Definir modelos polimórficos para activos (discriminador: type [server_physical, server_virtual, switch, router, ap, database]).
-    - El modelo Asset debe incluir un array 'tags' que contenga objetos Tag (id, name, color, origin).
-    - Endpoint 'POST /v1/assets/bulk-tags': Para asignar etiquetas manuales a múltiples asset_ids simultáneamente.
-    - Campos de compliance obligatorios: 'edr_installed' (bool), 'monitored' (bool), 'siem_enabled' (bool), 'logs_enabled' (bool), 'last_backup_local' (datetime|null), 'last_backup_cloud' (datetime|null). Todos son de **solo escritura por el sistema de ingesta** — no son editables por usuarios. El verde/rojo en UI refleja lo que cada origen de datos externo ha reportado en la última sincronización.
-    - El campo 'last_backup' queda eliminado, sustituido por 'last_backup_local' y 'last_backup_cloud'.
-    - Validación de seguridad: Patterns y maxLength en todos los inputs para mitigar inyecciones.
-  backend_code:
-    - Lógica de Auto-Tagging: Al procesar datos de VMware o Red, asignar etiquetas de sistema (ej: 'Cisco' si el vendor es cisco, 'Virtual' si viene de vCenter).
-    - Implementar lógica de 'Upsert' basada en identificadores únicos (UUID/MAC).
-    - El backend debe impedir que un usuario borre o modifique etiquetas cuyo 'origin' sea 'system'.
-    - Rendimiento: Procesamiento asíncrono para ingestas masivas horarias.
-  frontend_code:
-    - Dashboard: Componentes visuales (Badges) para cumplimiento y etiquetas.
-    - Estilo de Etiquetas: Las manuales deben tener colores vibrantes (definidos por admin) y las automáticas colores neutros (sistema).
-    - Acciones Masivas: Tabla con checkboxes para selección múltiple y botón "Asignar Etiquetas".
-    - Indicador de frescura: Mostrar tiempo transcurrido desde la última sincronización horaria.
-    - Historificacion: Selector de fecha y hora (datetime-local) que permite elegir cualquier momento exacto para ver el inventario en ese instante. Opción de volver a Live con un botón. El header muestra si se está en modo Live (verde) o Histórico (ámbar) con la fecha/hora seleccionada.
-    - Busqueda: En el dashboard se mostrara un boton de busqueda, que sera, por todos los campos que se muestren.
-    - Ordenar: Se podra ordenar por todos los campos que se muestren.
-    - Estado: Los indicadores de compliance se muestran como rectángulos con texto corto en su interior, no como puntos. Las etiquetas son: EDR, MON (monitorización), SIEM, LOGS, BCK (backup local), BCKCL (backup cloud). Color verde si el indicador está activo/OK, rojo si no lo está. Para BCK y BCKCL se muestra la fecha del último backup en un tooltip al hacer hover.
-    - Filtro por etiqueta: Al hacer click en cualquier etiqueta mostrada en la tabla del inventario, se activa un filtro que muestra únicamente los activos que tienen esa etiqueta. Un segundo click en la misma etiqueta (o botón ✕ en el filtro activo) elimina el filtro. La etiqueta activa se resalta visualmente con un ring. Solo puede haber un filtro de etiqueta activo a la vez.
-    - Perfil en header: El nombre de usuario y el rol deben mostrarse en la esquina superior derecha del header, con el nombre en texto grande (font-semibold, text-base) y el rol en texto pequeño (text-xs) debajo, junto al avatar. El header es visible en todas las páginas autenticadas.
-  k8s_manifests:
-    - Helm: Configurar CronJobs (0 * * * *) para las tareas de sincronización periódica.
-    - Gestión de Secretos: Inyectar credenciales de vCenter/Veeam/Monica de forma segura.
-
-# Desglose de tareas
-tasks:
-  - name: "Design OpenAPI: Asset schemas with security compliance and tag support"
-    hours: 2
-  - name: "Backend: Logic for Automated System Tags (VMware/Networking detection)"
-    hours: 3
-  - name: "API: Implement Bulk Assignment endpoint for manual tags"
-    hours: 2
-  - name: "Frontend: Inventory list with bulk actions and color-coded tag badges"
-    hours: 4
-  - name: "DB Design: Relations for Asset-Tag mapping (N:M) and compliance tracking"
-    hours: 3
-  - name: "Helm: Configure Hourly CronJobs for external API data ingestion"
-    hours: 2
+# Estado
+status: Implementado al 95%. Pendiente: ubicación en columna de inventario.

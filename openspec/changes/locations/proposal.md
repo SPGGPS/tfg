@@ -1,40 +1,20 @@
-# Proposal: Localizaciones físicas (Zone → Site → Cell)
+id: locations
 
-## Motivación
-El CMDB gestiona activos físicos pero no sabe dónde están ubicados. Para el mapa de dependencias y el análisis de impacto es fundamental conocer si dos elementos comparten rack, sala, CPD o edificio.
+context: |
+  Feature: Localización física de activos (Zone → Site → Cell)
+  Domain: Gestión de infraestructura física.
+  Motivación: El CMDB gestiona activos pero no sabe dónde están físicamente.
+  Para análisis de impacto es fundamental saber si dos elementos comparten rack,
+  sala, CPD o edificio.
 
-## Modelo — tres niveles
+proposal: |
+  Modelo jerárquico de 3 niveles:
+    Zone  → agrupación lógica (sin dirección). Ej: "Ayuntamiento SSReyes"
+    Site  → edificio/campus con dirección. Ej: "Edificio Principal"
+    Cell  → CPD/rack/sala donde se asignan assets. Ej: "Rack A", "CPD Backup"
 
-```
-Zona (agrupación lógica)
-  └── Site / Localización física (edificio o campus concreto)
-        └── Cell / Celda (CPD, sala, rack, armario — granularidad de asignación)
-```
+  Los assets y Applications tienen FK cell_id → cells.id (SET NULL on delete).
+  La ruta /locations muestra un árbol jerárquico con CRUD en cada nivel.
+  Seed inicial con 1 zona, 2 sites, 4 cells de ejemplo.
 
-| Nivel | Ejemplos | Tiene dirección | Se asignan assets |
-|-------|----------|-----------------|-------------------|
-| **Zona** | "Ayuntamiento SSReyes", "AWS eu-west-1" | No | No |
-| **Site** | "Edificio Principal", "CPD Externo" | Sí | No |
-| **Cell** | "CPD Principal", "Rack A", "Armario Comunicaciones" | No | **Sí** |
-
-## Cambios respecto al modelo anterior
-
-El modelo anterior (`Location` autorreferenciado con `parent_id`) fue descartado por dos motivos:
-1. **Error 500 al crear**: SQLAlchemy y el router tenían problemas de orden de declaración con rutas estáticas vs parámetros de path
-2. **Semántica débil**: no quedaba claro qué era un "edificio" vs un "rack" vs una "sala"
-
-El nuevo modelo tiene semántica explícita en cada nivel y endpoints separados por entidad.
-
-## Seed
-```
-Zona: "Ayuntamiento San Sebastián de los Reyes"
-  Site: "Edificio Principal" (Plaza de la Constitución s/n)
-    Cell: "CPD Principal"  (datacenter)
-    Cell: "Rack A"         (rack, Fila A, U1-U42)
-    Cell: "Rack Red"       (rack, Fila B, U1-U24)
-  Site: "Edificio Anexo" (C/ Cervantes 12)
-    Cell: "CPD Backup"     (datacenter)
-```
-
-## Bulk assign masivo
-Desde cada celda en la UI, botón "Asignar assets" abre un modal con búsqueda y selección múltiple. Endpoint `POST /v1/cells/bulk-assign` (declarado antes del `/{cell_id}` en el router).
+status: Implementado al 100%.

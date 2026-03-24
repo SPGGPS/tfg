@@ -1,27 +1,38 @@
 # Design: Inventory Master
 
 ## Context
-
-CMDB centralizado con activos (servidores, red), ingesta desde VMware/Veeam/Monica/EDR, etiquetado dual (sistema + manual), y compliance (EDR, backup, monitorización, logs). Sync horaria. Stack: FastAPI, React, PostgreSQL.
+CMDB centralizado con activos (servidores, red, bases de datos), ingesta desde fuentes externas,
+etiquetado dual (sistema + manual), y compliance (EDR, backup, monitorización, logs, SIEM).
+Stack: FastAPI, React, PostgreSQL 16.
 
 ## Goals / Non-Goals
 
-**Goals:** Esquema Asset polimórfico, POST /v1/assets/bulk-tags, auto-tagging, dashboard con badges, historificación por hora, búsqueda/ordenación.
+**Goals:**
+- Esquema Asset polimórfico con tipos: server_physical, server_virtual, switch, router, ap, database
+- Sistema de compliance con 6 indicadores: edr, mon, siem, logs, bck, bckcl
+- Etiquetas dual: sistema (auto) y manuales (admin)
+- Historificación por hora, búsqueda/ordenación/filtros
+- Tipo "database" como activo de primera clase
 
-**Non-Goals:** CRUD manual de activos (vienen de ingesta), edición de tags de sistema.
+**Non-Goals:**
+- CRUD manual de activos (vienen de ingesta externa)
+- Edición de etiquetas de sistema
 
-## Decisions
+## Decisiones de diseño
 
 | Decisión | Rationale |
 |----------|-----------|
-| Discriminador `type` | server_physical, server_virtual, switch, router, ap, **database** permiten extensión sin herencia múltiple |
-| Upsert por UUID/MAC | Evitar duplicados en ingestas; identificadores únicos de fuentes externas |
-| Tabla Asset-Tag N:M | Un activo muchas tags, una tag muchos activos; CASCADE al borrar tag manual |
-| database como tipo propio | Las bases de datos son activos de primera clase con campos específicos (engine, port, replication) que no encajan en servidores ni en red. Permiten compliance independiente y visibilidad directa en el inventario |
+| Discriminador `type` en Asset | server_physical/virtual/switch/router/ap/database — extensible sin herencia múltiple |
+| Upsert por UUID/MAC | Evitar duplicados en ingestas horarias desde múltiples fuentes |
+| Tabla asset_tag N:M | Un activo → muchas tags. CASCADE al borrar tag manual |
+| database como AssetType propio | Campos específicos (engine, port, schemas) no encajan en servers ni en red |
+| last_backup_local + last_backup_cloud | Dos columnas separadas en lugar de una genérica; permite compliance independiente |
+| NULLS FIRST en sort ASC para backups | Sin backup aparece primero (peor estado visible arriba) |
+| NULLS LAST en sort DESC para backups | Más recientes primero, sin backup al final |
 
-## Risks / Trade-offs
+## Riesgos
 
-| Risk | Mitigation |
-|------|------------|
-| Ingesta lenta | Procesamiento asíncrono; CronJob 0 * * * * |
-| Historificación pesada | Particionado por mes; retención 1 año |
+| Riesgo | Mitigación |
+|--------|-----------|
+| Ingesta lenta con muchos activos | Upsert en batch; índice en mac_address |
+| Historificación pesada | Retención 1 año; CronJob de purga en Helm |
