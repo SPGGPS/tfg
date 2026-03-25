@@ -42,11 +42,29 @@
 - [x] 3.7 Tab activo: border-red-600 text-red-700 font-semibold
 - [x] 3.8 AssetDetailPage /assets/:id con todos los campos + historial auditoría
 - [x] 3.9 Columna "Ubicación" en tabla mostrando cell.full_path (via Asset._get_cell_full_path())
+- [x] 3.10 Filas de inventario clickeables (navigate a /assets/:id al pulsar la fila)
+- [x] 3.11 Botón "+ Nuevo activo" (solo editor/admin) → modal con formulario por tipo
+- [x] 3.12 Formulario nuevo activo: campos comunes (nombre, tipo, IP, vendor) + campos tipo-específicos
+         (server: OS/model/serial; database: motor/versión/host; web_server: software/versión;
+          k8s_cluster: proveedor/versión; container: imagen/tag/runtime/estado; red: modelo/firmware)
 
 ## 4. Infra
-- [x] 4.1 CronJob Helm para snapshot horario (AssetHistory)
-- [x] 4.2 CronJob Helm para purga de history > 1 año
+- [x] 4.1 CronJob Helm para snapshot horario (AssetHistory) — implementado en Helm Y en APScheduler backend
+- [x] 4.2 CronJob Helm para purga de history > 1 año — `purge_old_snapshots()` en history_service.py, llamado desde hourly_snapshot
 - [ ] 4.3 CronJobs de ingesta desde VMware/Veeam/EDR/Monica (estructura existe, lógica pendiente)
+
+### Estado de historificación (AssetHistory)
+
+**Implementado:**
+- Modelo `AssetHistory` (asset_id, snapshot_at INDEX, snapshot JSON) en `models/asset.py`
+- `history_service.py`: `take_snapshot()`, `get_assets_at()`, `get_available_snapshots()`, `purge_old_snapshots()`
+- `GET /v1/assets/history/snapshots` — lista snapshots disponibles
+- Vista histórica en InventoryPage: filtro `as_of` que usa `get_assets_at()`
+- Retención: 365 días (RETENTION_DAYS en history_service.py)
+- **CronJob APScheduler**: `hourly_snapshot()` programado `minute=0` (cada hora en punto, Europe/Madrid) — **añadido en esta iteración**
+
+**Pendiente:**
+- 4.3 Ingesta real desde fuentes externas (VMware, Veeam, EDR, Monica)
 
 ## 6. Seed de datos completo (init_db.py)
 

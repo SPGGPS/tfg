@@ -3,6 +3,8 @@
 ## Backend (8h)
 - [x] Añadir AssetType.k8s_cluster y AssetType.container al enum
 - [x] Añadir campos k8s_* y container_* al modelo Asset
+- [x] Añadir campo `container_id` (Docker container hash, 64 chars) al modelo Asset
+- [x] Añadir `host_asset_id` / `host_asset_name` como campos del contenedor (servidor host)
 - [x] Actualizar to_dict() para incluir nuevos campos
 - [x] Actualizar apply_auto_tags() para nuevos tipos ("Kubernetes", "Container")
 - [x] Actualizar apply_eol_tags() para k8s_version → kubernetes
@@ -10,7 +12,7 @@
 - [x] Actualizar _eol_status_for_asset_and_product() en eol.py para k8s_version
 - [x] Añadir GET /v1/cmdb/kubernetes
 - [x] Añadir GET /v1/cmdb/containers
-- [x] Seed enriquecido: 3 clusters + 5 contenedores (ver sección Datos de ejemplo)
+- [x] Seed enriquecido: 3 clusters + 5 contenedores con container_id real (ver sección Datos de ejemplo)
 - [x] Actualizar check seed_if_empty para detectar ausencia de k8s_cluster/container
 
 ## Frontend (12h)
@@ -62,12 +64,17 @@
 
 ### Contenedores Docker
 
-| ID | Nombre | Imagen | Estado | Host |
-|----|--------|--------|--------|------|
-| asset-ct-nginx-gw      | nginx-gateway-prod         | nginx:1.25.4                  | running | vm-proxy-prod-01  |
-| asset-ct-portainer     | portainer-mgmt             | portainer/portainer-ce:2.20.3 | running | vm-monitoring-01  |
-| asset-ct-redis         | redis-cache-prod           | redis:7.2.4-alpine            | running | vm-api-prod-01    |
-| asset-ct-zabbix-proxy  | zabbix-proxy-anexo         | zabbix-proxy-sqlite3:6.4      | stopped | vm-monitoring-01  |
-| asset-ct-keycloak-old  | keycloak-standalone-legacy | keycloak/keycloak:22.0.5      | exited  | vm-sso-01         |
+| ID | Nombre | Imagen | Estado | Host VM | Docker Container ID |
+|----|--------|--------|--------|---------|---------------------|
+| asset-ct-nginx-gw      | nginx-gateway-prod         | nginx:1.25.4                  | running | vm-proxy-prod-01 (asset-vm-proxy-01)   | a3f8c2d14e76b905… |
+| asset-ct-portainer     | portainer-mgmt             | portainer/portainer-ce:2.20.3 | running | vm-zabbix-01 (asset-vm-zabbix-01)      | b7e2a4f9c1d3e5a8… |
+| asset-ct-redis         | redis-cache-prod           | redis:7.2.4-alpine            | running | vm-api-prod-01 (asset-vm-api-01)       | c9d4f1a7e3b8c2d6… |
+| asset-ct-zabbix-proxy  | zabbix-proxy-anexo         | zabbix-proxy-sqlite3:6.4      | stopped | vm-zabbix-01 (asset-vm-zabbix-01)      | d2e6b8f3a5c9d1e7… |
+| asset-ct-keycloak-old  | keycloak-standalone-legacy | keycloak/keycloak:22.0.5      | exited  | vm-sso-01 (asset-vm-sso-01)            | e5f9c3a8d2b6e1f7… |
+
+**Campos de host en contenedores:**
+- `host_asset_id`: FK al Asset del servidor VM que hospeda el contenedor (nullable, puede no estar en inventario)
+- `host_asset_name`: nombre desnormalizado del host (se muestra aunque el host no esté en inventario)
+- `container_id`: hash Docker de 64 chars (cambia en cada `docker run` o `docker restart`)
 
 Los contenedores `stopped` y `exited` ilustran el estado real de infraestructura: el Zabbix Proxy está caído por pérdida de conectividad y el Keycloak legacy fue migrado al cluster k8s-prod pero el contenedor persiste sin limpiar.

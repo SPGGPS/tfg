@@ -10,4 +10,4 @@
 - [x] 2.1 TagsPage: sección Sistema (20 etiquetas, no editables) + Manual (editables)
 - [x] 2.2 Modal confirmación borrado con número de activos afectados
 - [x] 2.3 Formulario edición: nombre, descripción, color hex
-- [ ] 2.4 Selector de color estilo Chrome (hue slider + saturation picker)
+- [x] 2.4 Selector de color estilo Chrome (hue slider + saturation picker)
