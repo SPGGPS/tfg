@@ -13,6 +13,8 @@
            db_last_vacuum, db_notes, db_cluster_nodes
 - [x] 1.7 Campos extendidos: serial_number, location, cell_id FK, description,
            purchase_date, warranty_expiry
+- [x] 1.10 Campo `created_by` (String 100, nullable) — nombre del usuario que dio de alta el asset
+           manualmente. Solo se rellena cuando source='manual'. Usado en la columna "Última sync".
 - [x] 1.8 Modelo AssetHistory: asset_id, snapshot_at (INDEX), snapshot (JSON)
 - [x] 1.9 Tabla asset_tag (M:N) con CASCADE
 
@@ -21,7 +23,10 @@
 - [x] 2.2 Ordenación NULLS FIRST/LAST para last_backup_local, last_backup_cloud, last_sync
 - [x] 2.3 Ordenación case-insensitive con func.lower() para campos texto
 - [x] 2.4 GET /v1/assets/{id} con detail=True (incluye campos db_* extendidos)
-- [x] 2.5 POST /v1/assets/ingest — bulk upsert por id/mac_address
+- [x] 2.5 POST /v1/assets/ingest — bulk upsert por id/mac_address. Al crear con source='manual',
+          guarda automáticamente `created_by` con el `preferred_username` del token.
+- [x] 2.12 DELETE /v1/assets/{id} — elimina un asset. Solo permite borrar assets con source='manual'.
+          Requiere rol editor. Registra en audit_log (ActivityType.DELETE).
 - [x] 2.6 POST /v1/assets/bulk-tags — asignación masiva
 - [x] 2.7 GET /v1/assets/history/snapshots
 - [x] 2.8 Serialización enriquecida: tags + active_exceptions en to_dict()
@@ -47,6 +52,14 @@
 - [x] 3.12 Formulario nuevo activo: campos comunes (nombre, tipo, IP, vendor) + campos tipo-específicos
          (server: OS/model/serial; database: motor/versión/host; web_server: software/versión;
           k8s_cluster: proveedor/versión; container: imagen/tag/runtime/estado; red: modelo/firmware)
+- [x] 3.13 Validación de IP en tiempo real en el formulario: regex IPv4, error inline rojo, bloqueo al submit
+- [x] 3.14 Campos obligatorios por tipo: vendor (todos), IP (servers+red), OS (servers), motor (database),
+          software (web_server), proveedor+versión (k8s_cluster), imagen (container)
+- [x] 3.15 Botón eliminar (icono papelera) en columna propia al final de la tabla — solo visible en filas
+          con source='manual' y rol editor/admin. Pide confirmación antes de borrar.
+- [x] 3.16 Columna "Última sync" muestra "✏️ <usuario>" para activos manuales en lugar de fecha de sync
+- [x] 3.17 Badge ámbar "MANUAL" junto al nombre en filas de activos con source='manual'
+- [x] 3.18 SourceBadge "Manual" → color ámbar con icono ✏️ (antes era gris)
 
 ## 4. Infra
 - [x] 4.1 CronJob Helm para snapshot horario (AssetHistory) — implementado en Helm Y en APScheduler backend

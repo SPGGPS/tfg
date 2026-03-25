@@ -42,6 +42,7 @@ model, port_count, firmware_version, max_speed, coverage_area, connected_clients
 db_engine, db_version, db_size_gb, db_host, db_port, db_replication, db_cluster,
 db_is_cluster, db_vip, db_host_asset_id, db_host_display,
 serial_number, location, cell_id, description, purchase_date, warranty_expiry,
+**created_by** (string|null — usuario que dio de alta; solo para source='manual'),
 created_at, updated_at, tags[], exceptions[]
 
 ### Asset.to_dict(detail=True) — campos adicionales solo en detalle
@@ -57,7 +58,22 @@ Devuelve Asset.to_dict(detail=True).
 ---
 
 ## POST /v1/assets/ingest
-Requiere editor. Bulk upsert por `id` o `mac_address`. Body: array de assets.
+Requiere **admin**. Bulk upsert por `id` o `mac_address`. Body: array de assets.
+Si `source='manual'`, rellena automáticamente `created_by` con el `preferred_username` del token JWT.
+
+---
+
+## DELETE /v1/assets/{id}
+Requiere **editor**. Elimina un asset **solo si** `source='manual'`.
+Devuelve `403` si el asset no es manual. Registra en audit_log con `ActivityType.DELETE`.
+
+```json
+// Respuesta 200
+{ "ok": true, "deleted": "<asset_id>" }
+
+// Respuesta 403
+{ "detail": "Solo se pueden eliminar activos dados de alta manualmente" }
+```
 
 ---
 

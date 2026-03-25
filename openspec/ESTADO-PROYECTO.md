@@ -1,5 +1,5 @@
 # Estado del proyecto — Inventario Centralizado (CMDB)
-**Última actualización:** 2026-03-17  
+**Última actualización:** 2026-03-25  
 **Código:** `tfg4/` | **Specs:** `openspec/changes/`
 
 ---
@@ -21,9 +21,11 @@ cd tfg4 && docker-compose down -v && docker-compose up --build
 ## Modelos de datos
 
 ### Asset
-- Tipos: `server_physical`, `server_virtual`, `switch`, `router`, `ap`, `database`
+- Tipos: `server_physical`, `server_virtual`, `vcenter`, `switch`, `router`, `firewall`, `load_balancer`, `ap`, `storage_array`, `database`, `web_server`, `k8s_cluster`, `container`
 - Compliance: `edr_installed`, `monitored`, `siem_enabled`, `logs_enabled`, `last_backup_local`, `last_backup_cloud`
 - FK: `cell_id` → Cell (localización física)
+- `source`: origen del asset (`vmware`, `zabbix`, `manual`, etc.)
+- `created_by`: nombre del usuario que dio de alta el asset (solo `source='manual'`)
 
 ### Certificate (PKI)
 - Campos: common_name, san_domains, expires_at (INDEX), ca_type, key_type, wildcard, auto_renew
@@ -78,9 +80,14 @@ cd tfg4 && docker-compose down -v && docker-compose up --build
 
 | Ruta | Página | Rol |
 |------|--------|-----|
-| `/` | InventoryPage (tabs: Inventario / Certificados) | viewer |
+| `/inventario` | InventoryPage (tabs: Inventario / Certificados) | viewer |
 | `/certificates` | CertificatesPage | viewer |
 | `/assets/:id` | AssetDetailPage | viewer |
+| `/cmdb/servers` | ServersPage — físicos/virtuales/vCenters con modal de relaciones | viewer |
+| `/cmdb/network` | NetworkPage — switches/routers/firewalls/LBs/APs con tabs por tipo | viewer |
+| `/cmdb/databases` | DatabasesPage — instancias DB con barra de conexiones y HA | viewer |
+| `/cmdb/web-servers` | WebServersPage — web servers con virtual hosts y SSL | viewer |
+| `/cmdb/kubernetes` | KubernetesPage — clusters K8s y contenedores Docker | viewer |
 | `/applications` | Gestión de Servicios (tabs: Servicios / Aplicaciones / Mapa) | viewer |
 | `/tags` | TagsPage | admin |
 | `/locations` | LocationsPage (Zona→Site→Cell + bulk assign) | admin |
@@ -89,12 +96,24 @@ cd tfg4 && docker-compose down -v && docker-compose up --build
 | `/audit` | AuditPage | admin |
 | `/profile` | ProfilePage | viewer |
 
+### InventoryPage — funcionalidades de gestión manual
+- **Alta manual**: botón "+ Nuevo activo" (editor/admin) → modal con campos por tipo + validación IP en tiempo real
+- **Baja manual**: icono papelera en columna de acciones → solo para `source='manual'`, pide confirmación
+- **Identificación visual**: badge ámbar "MANUAL" junto al nombre + SourceBadge ámbar con ✏️
+- **Última sync**: para assets manuales muestra "✏️ \<usuario\>" en lugar de fecha de sincronización
+
 ---
 
 ## API endpoints principales
 
 ```
-GET/POST/PUT/DELETE /v1/assets
+GET                 /v1/assets                    — lista paginada con filtros y ordenación
+GET                 /v1/assets/{id}               — detalle (detail=True)
+POST                /v1/assets/ingest             — bulk upsert (admin); auto-rellena created_by si manual
+DELETE              /v1/assets/{id}               — eliminar asset (solo source='manual', editor+)
+POST                /v1/assets/bulk-tags          — asignación masiva de etiquetas
+POST                /v1/assets/bulk-untag         — quitar etiquetas de assets
+GET                 /v1/assets/history/snapshots  — snapshots históricos (hourly, 365d retención)
 GET                 /v1/assets/:id/impact
 GET/POST/PUT/DELETE /v1/certificates
 GET                 /v1/certificates/expiry-summary
