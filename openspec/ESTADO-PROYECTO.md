@@ -1,5 +1,5 @@
 # Estado del proyecto — Inventario Centralizado (CMDB)
-**Última actualización:** 2026-03-25  
+**Última actualización:** 2026-03-25 (Sophos EDR integration)
 **Código:** `tfg4/` | **Specs:** `openspec/changes/`
 
 ---
@@ -21,11 +21,13 @@ cd tfg4 && docker-compose down -v && docker-compose up --build
 ## Modelos de datos
 
 ### Asset
-- Tipos: `server_physical`, `server_virtual`, `vcenter`, `switch`, `router`, `firewall`, `load_balancer`, `ap`, `storage_array`, `database`, `web_server`, `k8s_cluster`, `container`
+- Tipos: `server_physical`, `server_virtual`, `workstation`, `vcenter`, `switch`, `router`, `firewall`, `load_balancer`, `ap`, `storage_array`, `database`, `web_server`, `k8s_cluster`, `container`
 - Compliance: `edr_installed`, `monitored`, `siem_enabled`, `logs_enabled`, `last_backup_local`, `last_backup_cloud`
 - FK: `cell_id` → Cell (localización física)
-- `source`: origen del asset (`vmware`, `zabbix`, `manual`, etc.)
+- `source`: origen del asset (`vmware-vcenter`, `sophos-edr`, `veeam`, `manual`, etc.)
 - `created_by`: nombre del usuario que dio de alta el asset (solo `source='manual'`)
+- **Backup (Veeam):** `backup_job_name`, `backup_last_status` (Success/Warning/Failed), `backup_restore_points`
+- **EDR (Sophos):** `edr_endpoint_id`, `edr_health` (good/suspicious/bad/unknown), `edr_last_seen`, `edr_tamper_protected`, `detected_services` (JSON: web_servers, databases, web_ports, db_ports)
 
 ### Certificate (PKI)
 - Campos: common_name, san_domains, expires_at (INDEX), ca_type, key_type, wildcard, auto_renew
@@ -153,6 +155,40 @@ GET                 /v1/audit-logs
 
 ---
 
+## Data Integrations (`/Desktop/data-integrations/`)
+
+Repositorio separado con scripts de extracción de datos de fuentes externas. Cada integración tiene su propio directorio con script, `requirements.txt`, `config.example.env` y `openspec/tasks.md`.
+
+### Integración VMware vSphere 8 (`vmware-vcenter/`)
+- **`vmware_extract.py`** — pyVmomi: extrae vCenter + ESX hosts + VMs → CMDB
+- ID estable: `vc-<host>`, `host-<fqdn>`, `vm-<moId>`
+- Campos: vendor, model, serial, CPU, RAM, IPs, OS, datacenter, cluster, VM power state, tools version, datastore, folder
+- Airflow DAG: `vmware_vcenter_sync` → `0 */4 * * *`
+
+### Integración Veeam B&R 13 (`veeam-backup/`)
+- **`veeam_extract.ps1`** — PowerShell en el servidor Veeam: extrae jobs + restore points + estado última sesión → JSON
+- **`veeam_push.py`** — Python: lee el JSON y actualiza `last_backup_local`, `backup_job_name`, `backup_last_status`, `backup_restore_points` en CMDB
+- Airflow DAG: `veeam_backup_sync` → `30 */4 * * *` (SSHOperator + PythonOperator)
+
+### Integración Sophos Central EDR (`sophos-edr/`)
+- **`sophos_extract.py`** — OAuth2 + Endpoint API + Live Discover (osquery):
+  - GET `/endpoint/v1/endpoints` → todos los endpoints EDR
+  - Live Discover query 1: `system_info` → cpu_count, ram_gb
+  - Live Discover query 2: `processes` (web) → detecta nginx, apache, IIS, tomcat...
+  - Live Discover query 3: `processes` (DB) → detecta postgresql, mysql, mssql, oracle, mongodb...
+  - Live Discover query 4: `listening_ports` → puertos web/DB abiertos
+  - Resultado: campo `detected_services` JSON por asset
+- Airflow DAG: `sophos_edr_sync` → `15 */4 * * *` (entre VMware :00 y Veeam :30)
+
+### Airflow DAGs (`airflow/dags/`)
+| DAG | Schedule | Descripción |
+|-----|----------|-------------|
+| `vmware_vcenter_sync` | `0 */4 * * *`  | Extrae vCenter+ESX+VMs |
+| `sophos_edr_sync`     | `15 */4 * * *` | Extrae endpoints EDR + detecta servicios |
+| `veeam_backup_sync`   | `30 */4 * * *` | Extrae estado backups Veeam |
+
+---
+
 ## Pendiente
 
 - [ ] Backend: tests unitarios (change `unit-test`)
@@ -160,6 +196,8 @@ GET                 /v1/audit-logs
 - [ ] Apache Flow: sincronización automática de datos PKI
 - [ ] Mapa topología: Layered View (carriles horizontales por tier)
 - [ ] Confirmar hex exacto del rojo corporativo SSReyes (actualmente `#C8001D` por aproximación)
+- [ ] Integración Zabbix (monitorización) — DAG pendiente
+- [ ] Integración CrowdStrike / SentinelOne — DAG pendiente
 
 ---
 

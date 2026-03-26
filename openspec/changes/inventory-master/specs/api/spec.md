@@ -41,6 +41,16 @@ ram_gb, total_disk_gb, cpu_count, os,
 model, port_count, firmware_version, max_speed, coverage_area, connected_clients,
 db_engine, db_version, db_size_gb, db_host, db_port, db_replication, db_cluster,
 db_is_cluster, db_vip, db_host_asset_id, db_host_display,
+product_name, product_version,
+vcenter_id, vcenter_name, hypervisor_id, hypervisor_name, vcenter_datacenter, vcenter_cluster,
+vm_guest_os, vm_tools_version, vm_cpu_reserved_mhz, vm_memory_reserved_mb,
+vm_datastore, vm_folder, vm_power_state,
+backup_job_name, backup_last_status, backup_restore_points,
+**edr_endpoint_id** (UUID del endpoint en Sophos Central),
+**edr_health** (good/suspicious/bad/unknown),
+**edr_last_seen** (ISO datetime — último contacto con Sophos),
+**edr_tamper_protected** (bool),
+**detected_services** (JSON: {web_servers:[…], databases:[…], web_ports:[…], db_ports:[…]}),
 serial_number, location, cell_id, description, purchase_date, warranty_expiry,
 **created_by** (string|null — usuario que dio de alta; solo para source='manual'),
 created_at, updated_at, tags[], exceptions[]
@@ -60,6 +70,17 @@ Devuelve Asset.to_dict(detail=True).
 ## POST /v1/assets/ingest
 Requiere **admin**. Bulk upsert por `id` o `mac_address`. Body: array de assets.
 Si `source='manual'`, rellena automáticamente `created_by` con el `preferred_username` del token JWT.
+Si `source='manual'`, valida unicidad de nombre (409) e IPs (409) antes de crear.
+
+### Campos aceptados (IngestAssetRequest) — resumen por integración
+| Campo | Fuente | Descripción |
+|-------|--------|-------------|
+| `vcenter_id`, `hypervisor_id` | VMware | FKs a otros assets |
+| `vm_power_state`, `vm_guest_os`, `vm_tools_version` | VMware | Estado de VM |
+| `vm_datastore`, `vm_folder`, `vm_cpu_reserved_mhz`, `vm_memory_reserved_mb` | VMware | Config VM |
+| `backup_job_name`, `backup_last_status`, `backup_restore_points` | Veeam | Estado backup |
+| `edr_endpoint_id`, `edr_health`, `edr_last_seen`, `edr_tamper_protected` | Sophos | Estado EDR |
+| `detected_services` | Sophos Live Discover | Servicios detectados (JSON) |
 
 ---
 

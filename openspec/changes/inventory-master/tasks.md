@@ -1,7 +1,7 @@
 # Tasks: Inventory Master
 
 ## 1. Modelos y DB
-- [x] 1.1 Modelo Asset polimórfico con AssetType enum
+- [x] 1.1 Modelo Asset polimórfico con AssetType enum (`workstation` añadido en iteración Sophos)
 - [x] 1.2 Campos compliance: edr_installed, monitored, siem_enabled, logs_enabled,
            last_backup_local, last_backup_cloud, last_sync
 - [x] 1.3 Campos servidor: ram_gb, total_disk_gb, cpu_count, os
@@ -64,7 +64,8 @@
 ## 4. Infra
 - [x] 4.1 CronJob Helm para snapshot horario (AssetHistory) — implementado en Helm Y en APScheduler backend
 - [x] 4.2 CronJob Helm para purga de history > 1 año — `purge_old_snapshots()` en history_service.py, llamado desde hourly_snapshot
-- [ ] 4.3 CronJobs de ingesta desde VMware/Veeam/EDR/Monica (estructura existe, lógica pendiente)
+- [x] 4.3 CronJobs de ingesta desde VMware/Veeam/EDR — implementados en `/Desktop/data-integrations/`
+         Scripts Airflow DAGs: `vmware_vcenter_sync` (0 */4), `sophos_edr_sync` (15 */4), `veeam_backup_sync` (30 */4)
 
 ### Estado de historificación (AssetHistory)
 
@@ -332,3 +333,47 @@ Inventario tiene sub-menú desplegable con:
 ### InventoryPage actualizada
 Columna "Fabricante" → "Producto / Fabricante": muestra product_name como título,
 product_version en subtítulo font-mono, vendor como tercera línea si difiere del producto.
+
+---
+
+## 13. Integraciones de datos externas (`/Desktop/data-integrations/`)
+
+### 13.1 VMware vSphere 8
+
+- [x] 13.1.1 `vmware_extract.py` — pyVmomi: conexión SSL configurable a vCenter
+- [x] 13.1.2 Extrae vCenter (type=`vcenter`), ESX hosts (type=`server_physical`), VMs (type=`server_virtual`)
+- [x] 13.1.3 IDs estables: `vc-<host>`, `host-<fqdn>`, `vm-<moId>`
+- [x] 13.1.4 Mapeo completo: vendor, model, serial, CPU packages, RAM, IPs, OS, firmware,
+             datacenter, cluster, vm_power_state, vm_tools_version, vm_datastore, vm_folder
+- [x] 13.1.5 Modos `--dry-run` y `--output FILE`
+- [x] 13.1.6 DAG Airflow `vmware_vcenter_sync` — `0 */4 * * *`
+- [x] 13.1.7 Campos añadidos a `IngestAssetRequest`: vcenter_id, hypervisor_id, vm_power_state,
+             vm_guest_os, vm_tools_version, vm_datastore, vm_folder, vm_cpu_reserved_mhz, vm_memory_reserved_mb
+
+### 13.2 Veeam Backup & Replication 13
+
+- [x] 13.2.1 `veeam_extract.ps1` — PowerShell: módulo `Veeam.Backup.PowerShell` + fallback `VeeamPSSnapin`
+- [x] 13.2.2 Procesa infrastructure jobs (Backup, BackupCopy, EpAgentBackup) y Veeam Agent Jobs
+- [x] 13.2.3 Por VM: `Get-VBRRestorePoint` (fecha, count, tamaño), `Get-VBRBackupSession` (estado, duración)
+- [x] 13.2.4 `veeam_push.py` — busca el asset por nombre (GET /v1/assets?search=), actualiza vía ingest
+- [x] 13.2.5 Campos backend: `backup_job_name`, `backup_last_status` (Success/Warning/Failed), `backup_restore_points`
+- [x] 13.2.6 Auto-migración vía `_auto_migrate()` — sin recrear la BD
+- [x] 13.2.7 DAG Airflow `veeam_backup_sync` — `30 */4 * * *` (SSHOperator → PS, PythonOperator → push)
+
+### 13.3 Sophos Central EDR
+
+- [x] 13.3.1 `sophos_extract.py` — OAuth2 Client Credentials → tenant → data region
+- [x] 13.3.2 GET `/endpoint/v1/endpoints` paginado → todos los endpoints del tenant
+- [x] 13.3.3 Mapeo endpoint → asset: ID estable `sophos-<uuid>`, type=`server_physical`/`workstation`, edr_installed=True
+- [x] 13.3.4 Live Discover query 1 — `system_info`: cpu_count, ram_gb
+- [x] 13.3.5 Live Discover query 2 — web_server_processes: detecta nginx, apache/httpd, IIS (w3wp.exe), tomcat, caddy
+- [x] 13.3.6 Live Discover query 3 — database_processes: detecta postgresql, mysql/mariadb, mssql, oracle, mongodb, redis, elasticsearch
+- [x] 13.3.7 Live Discover query 4 — listening_ports: puertos web (80/443/8080/…) y DB (1433/1521/3306/5432/…)
+- [x] 13.3.8 Campo `detected_services` JSON: `{web_servers:[…], databases:[…], web_ports:[…], db_ports:[…]}`
+- [x] 13.3.9 Rate limit respetado: 7s entre queries (límite Sophos: 10/min, cuota diaria: 1000 queries)
+- [x] 13.3.10 Polling con backoff exponencial hasta `status == "finished"` (timeout: 300s)
+- [x] 13.3.11 Modos `--dry-run`, `--verbose`, `--output FILE`, `--skip-queries`
+- [x] 13.3.12 Nuevo tipo de asset `workstation` en AssetType enum
+- [x] 13.3.13 Campos backend nuevos: `edr_endpoint_id`, `edr_health`, `edr_last_seen`, `edr_tamper_protected`, `detected_services`
+- [x] 13.3.14 Auto-migración vía `_auto_migrate()` — 5 columnas añadidas sin recrear la BD
+- [x] 13.3.15 DAG Airflow `sophos_edr_sync` — `15 */4 * * *` (entre VMware :00 y Veeam :30)
